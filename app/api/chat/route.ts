@@ -43,8 +43,9 @@ For a current-location question, clearly state that the location comes from the 
 and distinguish known coordinates/place information from unavailable live marine data.`;
 
 const isMapRequest = (text: string) =>
-  /\b(location|map|where|near|nearby|fishing|fish|spot|zone|coast|coastal|port|harbou?r|coordinates|place)\b/i.test(text) ||
-  /लोकेशन|जगह|स्थान|नक्शा|कहाँ|कहां|मछली|तट/.test(text);
+  /\b(location|map|where|near|nearby|spot|zone|harbou?r|coordinates|place)\b/i.test(text) ||
+  /\bfish(?:ing)?\b.{0,60}\b(?:in|at|near|around|zone|spot)\b|\b(?:in|at|near|around)\b.{0,60}\bfish(?:ing)?\b/i.test(text) ||
+  /लोकेशन|जगह|स्थान|नक्शा|कहाँ|कहां|मछली.{0,40}(?:पास|में|तट|क्षेत्र)|(?:पास|में|तट).{0,40}मछली/.test(text);
 
 const isDepthQuestion = (text: string) =>
   /\b(depth|how deep|bathymetry|bathymetric|sea floor|seafloor|gehrai|gaharai)\b|गहराई|कितना गहरा/i.test(text);
