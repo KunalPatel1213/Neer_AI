@@ -59,14 +59,14 @@ const isLiveDataQuestion = (text: string) =>
   /आज|अभी|लाइव|मौजूदा|तापमान|लहर|हवा|चक्रवात|चेतावनी|पीएफजेड|मछली पकड़ने का क्षेत्र/.test(text);
 
 const isMarineTopic = (text: string) =>
-  /\b(ocean|sea|marine|river|pond|lake|water|boat|ship|fishing|fish|coast|coastal|harbou?r|port|tide|wave|depth|bathymetry|sail|navigation|pfz|weather)\b/i.test(text) ||
-  /समुद्र|सागर|नदी|तालाब|झील|पानी|नाव|जहाज|मछली|तट|ज्वार|लहर|गहराई|मौसम/.test(text);
+  /\b(ocean|sea|marine|river|pond|lake|water|boat|ship|fishing|fish|coast|coastal|harbou?r|port|tide|wave|depth|bathymetry|sail|navigation|pfz)\b/i.test(text) ||
+  /समुद्र|सागर|नदी|तालाब|झील|पानी|नाव|जहाज|मछली|तट|ज्वार|लहर|गहराई/.test(text);
 
 const PLACE_STOP_WORDS = new Set([
   'a', 'about', 'at', 'around', 'can', 'current', 'depth', 'do', 'find', 'fishing', 'fish',
   'for', 'from', 'give', 'in', 'is', 'location', 'map', 'me', 'near', 'nearby', 'of', 'on',
   'please', 'show', 'spot', 'spots', 'tell', 'the', 'to', 'what', 'where', 'which', 'zone', 'area',
-  'good', 'best', 'some', 'nearby', 'beach', 'beaches', 'water', 'marine',
+  'good', 'best', 'some', 'nearby', 'beach', 'beaches', 'water', 'marine', 'port', 'harbor', 'harbour',
   'today', 'live', 'now', 'मुझे', 'बताओ', 'बताइए', 'दिखाओ', 'जगह', 'लोकेशन', 'नक्शा',
   'मछली', 'पकड़ने', 'क्षेत्र', 'पास', 'में', 'का', 'की', 'के', 'आज', 'अभी', 'गहराई',
 ]);
