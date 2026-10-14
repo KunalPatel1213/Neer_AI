@@ -52,6 +52,21 @@ type MainscreenProps = {
 const asksForCurrentLocation = (text: string) =>
   /\b(?:my|current)\s+(?:current\s+)?(?:location|position|coordinates)\b|\bwhere am i\b|\bnear me\b|\baround me\b|\b(?:mera|meri|apni)\s+(?:current\s+)?(?:location|jagah|position|coordinates)\b|मेरी\s+(?:वर्तमान\s+)?(?:लोकेशन|जगह|स्थिति)|मेरा\s+(?:वर्तमान\s+)?(?:लोकेशन|जगह|स्थिति)|मैं\s+(?:अभी\s+)?कहाँ\s+हूँ|मेरे\s+आसपास/i.test(text);
 
+const getOpenStreetMapEmbedUrl = (location: { latitude: number; longitude: number }) => {
+  const latitudeSpan = 0.08;
+  const longitudeSpan = latitudeSpan / Math.max(0.2, Math.cos((location.latitude * Math.PI) / 180));
+  const bounds = [
+    location.longitude - longitudeSpan,
+    location.latitude - latitudeSpan,
+    location.longitude + longitudeSpan,
+    location.latitude + latitudeSpan,
+  ].join(',');
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bounds}&layer=mapnik&marker=${location.latitude},${location.longitude}`;
+};
+
+const getOpenSeaMapUrl = (location: { latitude: number; longitude: number }) =>
+  `https://map.openseamap.org/?lang=en&zoom=12&lat=${location.latitude}&lon=${location.longitude}`;
+
 const THINKING_STEPS = [
   { agent: "Ocean Analysis", text: "Analyzing ocean & marine conditions..." },
   { agent: "Weather", text: "Fetching satellite & GIS weather data..." },
@@ -517,25 +532,24 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
 
                       <div className="pl-11 space-y-3 text-xs md:text-sm text-[#CDCDCD]/90">
                         <p className="font-light whitespace-pre-wrap">{msg.text}</p>
-                        {msg.showMap && (
+                        {msg.showMap && msg.mapLocation && (
                           <div className="space-y-3 rounded-3xl border border-blue-400/20 bg-[#0b1b2a]/70 p-3">
-                            <p className="text-sm font-medium text-white">Marine location map</p>
+                            <p className="text-sm font-medium text-white">Location map</p>
                             <iframe
-                              title="OpenSeaMap marine map"
-                              src={`https://map.openseamap.org/?lang=en&zoom=12&lat=${msg.mapLocation?.latitude ?? 20}&lon=${msg.mapLocation?.longitude ?? 78}`}
+                              title="OpenStreetMap location map"
+                              src={getOpenStreetMapEmbedUrl(msg.mapLocation)}
                               className="h-56 sm:h-72 lg:h-96 w-full rounded-2xl border border-gray-700/60 bg-[#07111c]"
                               loading="lazy"
+                              referrerPolicy="no-referrer"
                             />
                             {msg.locationLabel && (
                               <p className="text-[#CDCDCD]/80">
-                                Current approximate location: {msg.locationLabel}
+                                Map center: {msg.locationLabel}
                               </p>
                             )}
-                            {msg.mapLocation && (
-                              <p className="text-[#CDCDCD]/60">
-                                Coordinates: {msg.mapLocation.latitude.toFixed(5)}, {msg.mapLocation.longitude.toFixed(5)}
-                              </p>
-                            )}
+                            <p className="text-[#CDCDCD]/60">
+                              Coordinates: {msg.mapLocation.latitude.toFixed(5)}, {msg.mapLocation.longitude.toFixed(5)}
+                            </p>
                             {msg.marinePoints && msg.marinePoints.length > 0 && (
                               <ul className="space-y-1.5 border-t border-white/10 pt-2 text-[#CDCDCD]/85">
                                 {msg.marinePoints.map((point) => (
@@ -558,7 +572,7 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
                               </div>
                             )}
                             <a
-                              href={`https://map.openseamap.org/?lang=en&zoom=12&lat=${msg.mapLocation?.latitude ?? 20}&lon=${msg.mapLocation?.longitude ?? 78}`}
+                              href={getOpenSeaMapUrl(msg.mapLocation)}
                               target="_blank"
                               rel="noreferrer"
                               className="text-blue-300 underline"
