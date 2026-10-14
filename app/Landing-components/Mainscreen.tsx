@@ -49,8 +49,8 @@ type MainscreenProps = {
   onLogout: () => void;
 };
 
-const isLocationQuestion = (text: string) =>
-  /\b(current location|my location|location|where|map|coordinates|position|near me|boat|depth|gehrai|gaharai|samundar|sagar|naksha)\b|लोकेशन|कहां|नक्शा|गहराई|नाव/i.test(text);
+const asksForCurrentLocation = (text: string) =>
+  /\b(?:my|current)\s+(?:current\s+)?(?:location|position|coordinates)\b|\bwhere am i\b|\bnear me\b|\baround me\b|\b(?:mera|meri|apni)\s+(?:current\s+)?(?:location|jagah|position|coordinates)\b|मेरी\s+(?:वर्तमान\s+)?(?:लोकेशन|जगह|स्थिति)|मेरा\s+(?:वर्तमान\s+)?(?:लोकेशन|जगह|स्थिति)|मैं\s+(?:अभी\s+)?कहाँ\s+हूँ|मेरे\s+आसपास/i.test(text);
 
 const THINKING_STEPS = [
   { agent: "Ocean Analysis", text: "Analyzing ocean & marine conditions..." },
@@ -224,7 +224,9 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
     if (isOffline) return;
 
     setIsThinking(true);
-    const needsLocation = isLocationQuestion(userText);
+    // Only ask for browser geolocation when the user explicitly asks about their own location.
+    // A follow-up like "location" should keep using the previous marine answer's context.
+    const needsLocation = asksForCurrentLocation(userText);
     const locationPromise = needsLocation ? requestCurrentLocation() : Promise.resolve(null);
     let stepIndex = 0;
     setCurrentStep(needsLocation
