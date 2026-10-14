@@ -122,7 +122,7 @@ async function findNearbyPlaces(location: { latitude: number; longitude: number 
 }
 
 async function askGemini(apiKey: string, contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>) {
-  const model = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
+  const model = process.env.GEMINI_MODEL?.trim() || 'gemini-flash-lite-latest';
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60000);
   let response: Response;
@@ -176,7 +176,9 @@ export async function POST(request: Request) {
       }));
     contents[contents.length - 1].parts[0].text += locationContext;
 
-    const keys = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_BACKUP].filter(
+    const keys = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_BACKUP]
+      .map((key) => key?.trim())
+      .filter(
       (key): key is string => Boolean(key)
     );
     if (keys.length === 0) {
@@ -197,9 +199,7 @@ export async function POST(request: Request) {
       console.error('Gemini providers failed', lastError);
       return NextResponse.json({ error: 'NEER AI could not connect to its response service. Check the API key and restart the server.' }, { status: 502 });
     }
-    const brandedAnswer = answer.startsWith('NEER AI:')
-      ? answer
-      : `NEER AI: ${answer}`;
+    const brandedAnswer = `NEER AI: ${answer.replace(/^NEER AI:\s*/i, '')}`;
     const marinePoints: MarinePoint[] = locationQuestion && body.location
       ? (() => {
           const hindi = /[\u0900-\u097F]/.test(lastUserMessage);

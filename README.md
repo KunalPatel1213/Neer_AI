@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NEER AI
 
-## Getting Started
+NEER AI is a marine information assistant for oceans, seas, rivers, ponds,
+boats, water safety, navigation, marine locations, and related map data.
 
-First, run the development server:
+## Run locally
+
+Requirements: Node.js 20 or newer and npm.
 
 ```bash
+npm install
+copy .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The chat API runs on the server at `/api/chat`. Add these variables to
+`.env.local` for local development:
 
-## Learn More
+```env
+GEMINI_API_KEY=your_primary_gemini_api_key
+GEMINI_API_KEY_BACKUP=your_backup_gemini_api_key
+GEMINI_MODEL=gemini-flash-lite-latest
+```
 
-To learn more about Next.js, take a look at the following resources:
+Never commit `.env.local` or put API keys in client-side code. The backup key is
+used when the primary provider request fails.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+For Vercel:
 
-## Deploy on Vercel
+1. Import this repository into Vercel.
+2. In **Project Settings → Environment Variables**, add
+   `GEMINI_API_KEY`, `GEMINI_API_KEY_BACKUP`, and `GEMINI_MODEL` for the
+   Production environment.
+3. Redeploy after saving the variables.
+4. Confirm the deployment can reach `https://your-domain/api/chat` with the app
+   UI. Do not expose the API keys in the browser.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The POST API route runs on the server and reads the runtime environment
+variables correctly. The app starts at the login screen, then continues to the
+welcome screen and main chat.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Checks
+
+```bash
+npm run lint
+npm run build
+```
