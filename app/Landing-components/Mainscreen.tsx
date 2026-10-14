@@ -50,7 +50,7 @@ type MainscreenProps = {
 };
 
 const isLocationQuestion = (text: string) =>
-  /\b(current location|my location|location|where|map|coordinates|position|near me|boat|depth)\b|लोकेशन|कहां|नक्शा|गहराई|नाव/i.test(text);
+  /\b(current location|my location|location|where|map|coordinates|position|near me|boat|depth|gehrai|gaharai|samundar|sagar|naksha)\b|लोकेशन|कहां|नक्शा|गहराई|नाव/i.test(text);
 
 const THINKING_STEPS = [
   { agent: "Ocean Analysis", text: "Analyzing ocean & marine conditions..." },
@@ -417,7 +417,7 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
       )}
 
       {/* Main Content Container */}
-      <div className="relative z-10 w-full max-w-md h-full flex flex-col justify-between overflow-hidden">
+      <div className="relative z-10 w-full max-w-5xl h-full flex flex-col justify-between overflow-hidden">
         
         {/* Top Navigation Bar */}
         <div className="flex flex-col w-full pt-2 pb-2 space-y-2 relative flex-shrink-0">
@@ -521,7 +521,7 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
                             <iframe
                               title="OpenSeaMap marine map"
                               src={`https://map.openseamap.org/?lang=en&zoom=12&lat=${msg.mapLocation?.latitude ?? 20}&lon=${msg.mapLocation?.longitude ?? 78}`}
-                              className="h-72 w-full rounded-2xl border border-gray-700/60 bg-[#07111c]"
+                              className="h-56 sm:h-72 lg:h-96 w-full rounded-2xl border border-gray-700/60 bg-[#07111c]"
                               loading="lazy"
                             />
                             {msg.locationLabel && (
@@ -596,7 +596,7 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
         </div>
 
         {/* Bottom Fixed Input Bar Area */}
-        <div className="w-full pt-2 pb-3 flex flex-col items-center space-y-3 flex-shrink-0">
+        <div className="w-full pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-col items-center space-y-3 flex-shrink-0">
           
           {isRecording ? (
             <div className="w-full flex items-center space-x-3 transition-all duration-300">

@@ -25,7 +25,8 @@ const SYSTEM_PROMPT = `You are NEER AI, a marine information assistant.
 Only answer questions about oceans, seas, rivers, ponds, marine weather, boats, fishing,
 water safety, navigation, bathymetry, ports, and marine locations. For unrelated questions,
 politely say you only provide water and marine information.
-Never invent real-time boat counts, people counts, depth, weather, or safety conditions.
+Never invent real-time boat counts, people counts, measured depth, weather, or safety conditions.
+For depth questions, first determine whether the available map/source data or reliable general knowledge can answer. If an exact local depth is unavailable, say so plainly. You may give a broad regional estimate only when you have a defensible basis, and label it as an unverified estimate rather than a measurement. Never make up a specific depth to fill the gap.
 Clearly label information as live/current only when it is provided by a connected data source.
 OpenSeaMap is a map reference, not a guaranteed live AIS or depth source.
 Be concise, useful, and answer in the same language and script used by the user.
@@ -33,7 +34,7 @@ For a current-location question, clearly state that the location comes from the 
 and distinguish known coordinates/place information from unavailable live marine data.`;
 
 const isLocationQuestion = (text: string) =>
-  /\b(location|current location|my location|where|map|coordinates|position|boat|depth|near me|place|जगह|स्थान|लोकेशन|कहां|नक्शा|गहराई|नाव)\b/i.test(text);
+  /\b(location|current location|my location|where|map|coordinates|position|boat|depth|near me|place|gehrai|gaharai|samundar|sagar|naksha|जगह|स्थान|लोकेशन|कहां|नक्शा|गहराई|नाव)\b/i.test(text);
 
 async function reverseGeocode(location: { latitude: number; longitude: number }) {
   const controller = new AbortController();
@@ -182,7 +183,10 @@ export async function POST(request: Request) {
       (key): key is string => Boolean(key)
     );
     if (keys.length === 0) {
-      return NextResponse.json({ error: 'NEER AI API is not configured. Add GEMINI_API_KEY to .env.local and restart the server.' }, { status: 503 });
+      return NextResponse.json({
+        error: 'NEER AI is not configured on this deployment. Add GEMINI_API_KEY in Vercel → Project Settings → Environment Variables for Production, then redeploy. For local development, add it to .env.local and restart the server.',
+        code: 'MISSING_GEMINI_API_KEY',
+      }, { status: 503 });
     }
 
     let answer = '';
@@ -197,7 +201,7 @@ export async function POST(request: Request) {
     }
     if (!answer) {
       console.error('Gemini providers failed', lastError);
-      return NextResponse.json({ error: 'NEER AI could not connect to its response service. Check the API key and restart the server.' }, { status: 502 });
+      return NextResponse.json({ error: 'NEER AI could not get a reply from Gemini. Check that GEMINI_API_KEY (and, if set, GEMINI_MODEL) is valid in Vercel → Project Settings → Environment Variables, then redeploy. Locally, check .env.local and restart the server.' }, { status: 502 });
     }
     const brandedAnswer = `NEER AI: ${answer.replace(/^NEER AI:\s*/i, '')}`;
     const marinePoints: MarinePoint[] = locationQuestion && body.location
