@@ -38,6 +38,18 @@ and distinguish known coordinates/place information from unavailable live marine
 const isLocationQuestion = (text: string) =>
   /\b(location|current location|my location|where|map|coordinates|position|boat|depth|near me|place|gehrai|gaharai|samundar|sagar|naksha|जगह|स्थान|लोकेशन|कहां|नक्शा|गहराई|नाव)\b/i.test(text);
 
+function getNoKeyAnswer(question: string) {
+  const asksForFishingZone = /\b(fishing\s*(zone|spot|area)|fish(ing)?\s*near|nearby\s*fishing|pfz|potential\s*fishing)\b/i.test(question);
+  const asksAboutLucknow = /\blacknow\b/i.test(question);
+  if (!asksForFishingZone || !asksAboutLucknow) return null;
+
+  if (/[\u0900-\u097F]/.test(question)) {
+    return 'लखनऊ समुद्र तट से दूर एक अंदरूनी शहर है, इसलिए वहाँ पास में marine fishing zone या INCOIS Potential Fishing Zone (PFZ) नहीं है। PFZ समुद्र में मछली पकड़ने के लिए तटीय इलाकों में जारी होते हैं। अगर आप freshwater fishing spot पूछ रहे हैं, तो झील/जलाशय का नाम बताइए—मैं अभी किसी जगह की अनुमति या मौजूदा fishing स्थिति verify नहीं कर सकता।';
+  }
+
+  return 'Lucknow is an inland city, so there is no nearby marine fishing zone or INCOIS Potential Fishing Zone (PFZ). PFZ advisories are for fishing along the coast. If you mean freshwater fishing, tell me the lake or reservoir you have in mind; I can’t verify current access or fishing permission here.';
+}
+
 async function reverseGeocode(location: { latitude: number; longitude: number }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
@@ -184,6 +196,18 @@ export async function POST(request: Request) {
       .map((key) => key?.trim())
       .filter((key): key is string => Boolean(key));
     if (keys.length === 0) {
+      const fallbackAnswer = getNoKeyAnswer(lastUserMessage);
+      if (fallbackAnswer) {
+        return NextResponse.json({
+          answer: `NEER AI: ${fallbackAnswer}`,
+          showMap: false,
+          mapLocation: null,
+          locationLabel: null,
+          marinePoints: [],
+          nearbyPlaces: [],
+        });
+      }
+
       return NextResponse.json({
         error: 'NEER AI is not connected yet. Add GEMINI_API_KEY to the Vercel project’s Environment Variables and redeploy.',
         code: 'MISSING_GEMINI_API_KEY',
