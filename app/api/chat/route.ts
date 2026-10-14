@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+export const maxDuration = 60;
+
 type ChatMessage = {
   sender: 'user' | 'ai';
   text?: string;
@@ -125,10 +127,9 @@ async function findNearbyPlaces(location: { latitude: number; longitude: number 
 async function askGemini(apiKey: string, contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>) {
   const model = process.env.GEMINI_MODEL?.trim() || 'gemini-flash-lite-latest';
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000);
-  let response: Response;
+  const timeout = setTimeout(() => controller.abort(), 45000);
   try {
-    response = await fetch(
+    const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
         method: 'POST',
@@ -141,32 +142,66 @@ async function askGemini(apiKey: string, contents: Array<{ role: 'user' | 'model
         }),
       }
     );
+    if (!response.ok) {
+      throw new Error(`NEER AI provider request failed with status ${response.status}`);
+    }
+    const data = (await response.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+    const answer = data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('').trim();
+    if (!answer) throw new Error('Gemini returned an empty response');
+    return answer;
   } finally {
     clearTimeout(timeout);
   }
-  if (!response.ok) {
-    throw new Error(`NEER AI provider request failed with status ${response.status}`);
-  }
-  const data = (await response.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-  const answer = data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('').trim();
-  if (!answer) throw new Error('Gemini returned an empty response');
-  return answer;
 }
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as ChatRequest;
-    const messages = body.messages || [];
+    let body: ChatRequest;
+    try {
+      body = (await request.json()) as ChatRequest;
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON.' }, { status: 400 });
+    }
+
+    if (!Array.isArray(body.messages) || body.messages.length === 0) {
+      return NextResponse.json({ error: 'Send at least one message.' }, { status: 400 });
+    }
+
+    const messages = body.messages.filter(
+      (message): message is ChatMessage =>
+        Boolean(message) &&
+        (message.sender === 'user' || message.sender === 'ai') &&
+        typeof message.text === 'string' &&
+        message.text.trim().length > 0
+    );
     const lastUserMessage = [...messages].reverse().find((message) => message.sender === 'user')?.text?.trim();
     if (!lastUserMessage) {
       return NextResponse.json({ error: 'A question is required' }, { status: 400 });
     }
 
     const locationQuestion = isLocationQuestion(lastUserMessage);
-    const locationLabel = locationQuestion && body.location ? await reverseGeocode(body.location) : null;
-    const nearbyPlaces = locationQuestion && body.location ? await findNearbyPlaces(body.location) : [];
-    const locationContext = body.location
-      ? `\nBrowser location, shared after user permission (approximate): ${body.location.latitude}, ${body.location.longitude}${locationLabel ? `\nApproximate place name from reverse geocoding: ${locationLabel}` : ''}`
+    const keys = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_BACKUP]
+      .map((key) => key?.trim())
+      .filter((key): key is string => Boolean(key));
+    if (keys.length === 0) {
+      return NextResponse.json({
+        error: 'NEER AI is not connected yet. Add GEMINI_API_KEY to the Vercel project’s Environment Variables and redeploy.',
+        code: 'MISSING_GEMINI_API_KEY',
+      }, { status: 503 });
+    }
+
+    const validLocation = body.location &&
+      Number.isFinite(body.location.latitude) &&
+      Number.isFinite(body.location.longitude) &&
+      Math.abs(body.location.latitude) <= 90 &&
+      Math.abs(body.location.longitude) <= 180
+      ? body.location
+      : null;
+    const [locationLabel, nearbyPlaces] = locationQuestion && validLocation
+      ? await Promise.all([reverseGeocode(validLocation), findNearbyPlaces(validLocation)])
+      : [null, [] as NearbyPlace[]];
+    const locationContext = validLocation
+      ? `\nBrowser location, shared after user permission (approximate): ${validLocation.latitude}, ${validLocation.longitude}${locationLabel ? `\nApproximate place name from reverse geocoding: ${locationLabel}` : ''}`
       : '';
     const contents = messages
       .filter((message) => message.text)
@@ -175,19 +210,11 @@ export async function POST(request: Request) {
         role: message.sender === 'user' ? 'user' as const : 'model' as const,
         parts: [{ text: message.text || '' }],
       }));
-    contents[contents.length - 1].parts[0].text += locationContext;
-
-    const keys = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_BACKUP]
-      .map((key) => key?.trim())
-      .filter(
-      (key): key is string => Boolean(key)
-    );
-    if (keys.length === 0) {
-      return NextResponse.json({
-        error: 'NEER AI is not configured on this deployment. Add GEMINI_API_KEY in Vercel → Project Settings → Environment Variables for Production, then redeploy. For local development, add it to .env.local and restart the server.',
-        code: 'MISSING_GEMINI_API_KEY',
-      }, { status: 503 });
+    const latestUserIndex = contents.map((content) => content.role).lastIndexOf('user');
+    if (latestUserIndex < 0) {
+      return NextResponse.json({ error: 'A question is required.' }, { status: 400 });
     }
+    contents[latestUserIndex].parts[0].text += locationContext;
 
     let answer = '';
     let lastError: unknown;
@@ -201,10 +228,10 @@ export async function POST(request: Request) {
     }
     if (!answer) {
       console.error('Gemini providers failed', lastError);
-      return NextResponse.json({ error: 'NEER AI could not get a reply from Gemini. Check that GEMINI_API_KEY (and, if set, GEMINI_MODEL) is valid in Vercel → Project Settings → Environment Variables, then redeploy. Locally, check .env.local and restart the server.' }, { status: 502 });
+      return NextResponse.json({ error: 'NEER AI could not get a reply from its AI provider. Check the Vercel environment variable values and try again.' }, { status: 502 });
     }
     const brandedAnswer = `NEER AI: ${answer.replace(/^NEER AI:\s*/i, '')}`;
-    const marinePoints: MarinePoint[] = locationQuestion && body.location
+    const marinePoints: MarinePoint[] = locationQuestion && validLocation
       ? (() => {
           const hindi = /[\u0900-\u097F]/.test(lastUserMessage);
           const nearbySummary = nearbyPlaces.length
@@ -215,7 +242,7 @@ export async function POST(request: Request) {
           return hindi
             ? [
                 { label: 'स्थान', value: locationLabel || 'ब्राउज़र से मिली अनुमानित लोकेशन' },
-                { label: 'निर्देशांक', value: `${body.location.latitude.toFixed(5)}, ${body.location.longitude.toFixed(5)}` },
+                { label: 'निर्देशांक', value: `${validLocation.latitude.toFixed(5)}, ${validLocation.longitude.toFixed(5)}` },
                 { label: 'दूरी', value: 'यह map आपकी current location पर centered है; किसी destination का नाम/स्थान न मिलने से destination distance उपलब्ध नहीं है।' },
                 { label: 'आसपास की चीज़ें', value: nearbySummary },
                 { label: 'मैप डेटा', value: 'OpenSeaMap के marine layers' },
@@ -223,7 +250,7 @@ export async function POST(request: Request) {
               ]
             : [
                 { label: 'Location', value: locationLabel || 'Approximate browser location' },
-                { label: 'Coordinates', value: `${body.location.latitude.toFixed(5)}, ${body.location.longitude.toFixed(5)}` },
+                { label: 'Coordinates', value: `${validLocation.latitude.toFixed(5)}, ${validLocation.longitude.toFixed(5)}` },
                 { label: 'Distance', value: 'This map is centered on your current location; a destination distance is unavailable because no destination was identified.' },
                 { label: 'Nearby things', value: nearbySummary },
                 { label: 'Map data', value: 'OpenSeaMap marine layers' },
@@ -234,8 +261,8 @@ export async function POST(request: Request) {
     return new NextResponse(
       JSON.stringify({
         answer: brandedAnswer,
-        showMap: locationQuestion && Boolean(body.location),
-        mapLocation: body.location || null,
+        showMap: locationQuestion && Boolean(validLocation),
+        mapLocation: validLocation,
         locationLabel,
         marinePoints,
         nearbyPlaces,
@@ -246,4 +273,12 @@ export async function POST(request: Request) {
     console.error('Chat API error', error);
     return NextResponse.json({ error: 'Invalid chat request' }, { status: 400 });
   }
+}
+
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    service: 'NEER AI chat API',
+    configured: Boolean(process.env.GEMINI_API_KEY?.trim() || process.env.GEMINI_API_KEY_BACKUP?.trim()),
+  });
 }
