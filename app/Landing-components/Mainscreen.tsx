@@ -12,6 +12,7 @@ type Message = {
   locationLabel?: string | null;
   mapUrl?: string | null;
   googleMapsUrl?: string | null;
+  googleMapsEmbedUrl?: string | null;
   marinePoints?: Array<{ label: string; value: string }>;
   nearbyPlaces?: Array<{ name: string; type: string; distanceKm: number }>;
 };
@@ -337,6 +338,7 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
         locationLabel?: string | null;
         mapUrl?: string | null;
         googleMapsUrl?: string | null;
+        googleMapsEmbedUrl?: string | null;
         marinePoints?: Array<{ label: string; value: string }>;
         nearbyPlaces?: Array<{ name: string; type: string; distanceKm: number }>;
         error?: string;
@@ -355,6 +357,7 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
           locationLabel: data.locationLabel,
           mapUrl: data.mapUrl,
           googleMapsUrl: data.googleMapsUrl,
+          googleMapsEmbedUrl: data.googleMapsEmbedUrl,
           marinePoints: data.marinePoints,
           nearbyPlaces: data.nearbyPlaces,
         },
@@ -580,15 +583,19 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
                         {((msg.showMap && msg.mapLocation) || msg.mapUrl) && (
                           <div className="space-y-3 rounded-3xl border border-blue-400/20 bg-[#0b1b2a]/70 p-3">
                             <p className="text-sm font-medium text-white">
-                              {msg.locationLabel?.startsWith('Approximate') ? 'Approximate fishing-area map' : 'Location map'}
+                              {msg.googleMapsEmbedUrl
+                                ? 'Google Maps preview'
+                                : msg.locationLabel?.startsWith('Approximate')
+                                  ? 'Approximate fishing-area map'
+                                  : 'Location map'}
                             </p>
                             {msg.showMap && msg.mapLocation && (
                               <iframe
-                                title="OpenStreetMap location map"
-                                src={getOpenStreetMapEmbedUrl(msg.mapLocation)}
+                                title={msg.googleMapsEmbedUrl ? 'Google Maps location preview' : 'OpenStreetMap location map'}
+                                src={msg.googleMapsEmbedUrl || getOpenStreetMapEmbedUrl(msg.mapLocation)}
                                 className="h-56 sm:h-72 lg:h-96 w-full rounded-2xl border border-gray-700/60 bg-[#07111c]"
                                 loading="lazy"
-                                referrerPolicy="no-referrer"
+                                referrerPolicy={msg.googleMapsEmbedUrl ? 'strict-origin-when-cross-origin' : 'no-referrer'}
                               />
                             )}
                             {msg.locationLabel && (

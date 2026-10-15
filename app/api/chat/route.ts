@@ -445,6 +445,9 @@ export async function POST(request: Request) {
           : mapQuery
             ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`
           : null,
+      googleMapsEmbedUrl: mapCenter && process.env.GOOGLE_MAPS_EMBED_API_KEY?.trim()
+        ? `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(process.env.GOOGLE_MAPS_EMBED_API_KEY.trim())}&q=${encodeURIComponent(`${mapCenter.latitude},${mapCenter.longitude}`)}`
+        : null,
       marinePoints: [] as MarinePoint[],
       nearbyPlaces,
     };
