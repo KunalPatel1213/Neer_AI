@@ -480,7 +480,7 @@ export async function POST(request: Request) {
     }
 
     if (isFishingZoneQuestion(lastUserMessage)) {
-      const isMumbaiExample = /\bmumbai\b/i.test(`${lastUserMessage} ${previousUserMessage} ${mapQuery || ''}`);
+      const isMumbaiExample = /\bmumbai\b/i.test(`${lastUserMessage} ${mapQuery || ''}`);
       if (isMumbaiExample && mapCenter && locationLabel?.startsWith('Approximate')) {
         return NextResponse.json({
           answer: `NEER AI: Mumbai Maharashtra ke Arabian Sea coast par hai. Ek rough demo fishing-area reference Mumbai coast se west ki taraf Arabian Sea ka offshore hissa hai. Map par approximate point dikhaya hai—ye official/live PFZ coordinate ya guaranteed fishing spot nahi hai. Nikalne se pehle local access aur sea conditions check kar lena.`,
