@@ -87,6 +87,7 @@ const PLACE_STOP_WORDS = new Set([
   'for', 'from', 'give', 'in', 'is', 'location', 'map', 'me', 'near', 'nearby', 'of', 'on',
   'please', 'show', 'spot', 'spots', 'tell', 'the', 'to', 'what', 'where', 'which', 'zone', 'area',
   'good', 'best', 'some', 'nearby', 'beach', 'beaches', 'water', 'marine', 'port', 'harbor', 'harbour',
+  'this', 'that', 'here', 'there',
   'today', 'live', 'now', 'hai', 'hain', 'ho', 'hu', 'hun', 'mai', 'mein', 'kaha', 'kahaan', 'kahan',
   'do', 'dena', 'batao', 'btao', 'dikhao', 'chahiye', 'mujhe', 'mujhko', 'jagah', 'jagha', 'sthan',
   'kya', 'hai', 'kaha', 'yaha', 'yahan', 'ka', 'ki', 'ke', 'se', 'par', 'wala', 'wali', 'मुझे', 'बताओ', 'बताइए', 'दिखाओ', 'जगह', 'लोकेशन', 'नक्शा',
@@ -343,10 +344,14 @@ export async function POST(request: Request) {
       lastUserMessage.split(/\s+/).length <= 4 &&
       (isMapRequest(lastUserMessage) || isDepthQuestion(lastUserMessage));
     const previousIsFishingQuestion = isFishingZoneQuestion(previousUserMessage);
+    const currentPlaceQuery = getPlaceQuery(lastUserMessage);
+    const currentIsFishingQuestion = isFishingZoneQuestion(lastUserMessage);
     const contextualPlaceFollowUp =
-      shortFollowUp && previousIsFishingQuestion && !isMapRequest(lastUserMessage) && Boolean(getPlaceQuery(lastUserMessage));
-    const mapQuerySource = contextualPlaceFollowUp
+      shortFollowUp && previousIsFishingQuestion && !currentIsFishingQuestion && !isMapRequest(lastUserMessage) && Boolean(currentPlaceQuery);
+    const mapQuerySource = currentPlaceQuery
       ? lastUserMessage
+      : contextualPlaceFollowUp
+        ? lastUserMessage
       : shortContextFollowUp && previousUserMessage
         ? previousUserMessage
         : lastUserMessage;
@@ -358,7 +363,8 @@ export async function POST(request: Request) {
       contextualPlaceFollowUp;
     const specificDepthQuestion = isDepthQuestion(lastUserMessage);
     const fishingLocationFollowUp =
-      previousIsFishingQuestion && (shortContextFollowUp && isMapRequest(lastUserMessage) || contextualPlaceFollowUp);
+      previousIsFishingQuestion && !currentIsFishingQuestion &&
+      (shortContextFollowUp && isMapRequest(lastUserMessage) || contextualPlaceFollowUp);
     const marineContext = shortFollowUp && isMarineTopic(previousUserMessage);
     const inMarineScope = isMarineTopic(lastUserMessage) || marineContext;
 
@@ -375,7 +381,8 @@ export async function POST(request: Request) {
       : null;
 
     const textCoordinates = mapRequest ? parseCoordinates(lastUserMessage) : null;
-    const previousMapMessage = shortContextFollowUp || contextualPlaceFollowUp
+    const reusePreviousMap = !currentPlaceQuery && (shortContextFollowUp || contextualPlaceFollowUp);
+    const previousMapMessage = reusePreviousMap
       ? [...messages].reverse().find((message) =>
           message.sender === 'ai' &&
           message.showMap &&
@@ -409,7 +416,7 @@ export async function POST(request: Request) {
 
     const mumbaiFishingContext =
       (isFishingZoneQuestion(lastUserMessage) || fishingLocationFollowUp) &&
-      /\bmumbai\b/i.test(`${lastUserMessage} ${previousUserMessage} ${mapQuery || ''}`);
+      /\bmumbai\b/i.test(`${lastUserMessage} ${mapQuery || ''}`);
     if (
       mumbaiFishingContext &&
       mapCenter &&
