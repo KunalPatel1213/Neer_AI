@@ -34,6 +34,10 @@ historical/general information; never present them as a verified current measure
 Never fabricate exact coordinates, nearby places, distances, fishing advisories, measured depths,
 weather, boat counts, or safety conditions. If an exact number is unknown, give qualitative context
 and say what source or additional detail would establish it instead of making up a number.
+For a question about the depth of a specific harbor, river, lake, coast, or other waterbody, never
+provide a numeric depth or numeric range unless a verified hydrographic measurement is included in
+the supplied context. This API has no such measurement source; explain that depths vary by location
+and offer relevant qualitative context without guessing a number.
 There is no connected bathymetry, AIS, live weather, or official Potential Fishing Zone feed. Do not
 claim current conditions. A map center is only a geocoded place reference, not evidence of water
 depth or a fishing zone. OpenStreetMap/OpenSeaMap are map references, not guaranteed live AIS or depth sources.
@@ -127,6 +131,15 @@ function createOutOfScopeAnswer(question: string) {
     return 'मैं केवल समुद्र, नदियों, पानी, मछली पकड़ने, नौकाओं और marine जानकारी में मदद कर सकता हूँ।';
   }
   return 'I can help with marine and water-related topics such as oceans, rivers, fishing, boats, navigation, and water safety.';
+}
+
+function createDepthAnswer(question: string, location: string | null) {
+  const place = location ? `${location} ` : 'इस जलक्षेत्र में ';
+  if (/[ऀ-ॿ]/.test(question)) {
+    return `${place}गहराई एक जगह से दूसरी जगह बदलती है—नौवहन चैनल, किनारे और ज्वारीय हिस्सों की गहराई अलग हो सकती है। मेरे पास verified hydrographic survey नहीं है, इसलिए मीटर में संख्या देना भरोसेमंद नहीं होगा। सटीक, मौजूदा गहराई के लिए आधिकारिक nautical chart या port survey देखें; मैप का marker केवल जगह दिखाता है, depth नहीं।`;
+  }
+  const englishPlace = location ? `${location}: ` : '';
+  return `${englishPlace}depth varies across a waterbody; maintained navigation channels, shorelines, and tidal areas can differ substantially. I don’t have a verified hydrographic survey for this point, so a meter value would be a guess. For a precise current depth, use an official nautical chart or port survey. The map marker identifies a place, not its depth.`;
 }
 
 function getNoKeyAnswer(question: string) {
@@ -296,6 +309,7 @@ export async function POST(request: Request) {
     const mapRequest =
       isMapRequest(lastUserMessage) ||
       (isDepthQuestion(lastUserMessage) && Boolean(mapQuery));
+    const specificDepthQuestion = isDepthQuestion(lastUserMessage);
     const marineContext = shortContextFollowUp && isMarineTopic(previousUserMessage);
     const inMarineScope = isMarineTopic(lastUserMessage) || marineContext;
 
@@ -339,6 +353,13 @@ export async function POST(request: Request) {
 
     if (!inMarineScope) {
       return NextResponse.json({ answer: `NEER AI: ${createOutOfScopeAnswer(lastUserMessage)}`, ...mapFields });
+    }
+
+    if (specificDepthQuestion) {
+      return NextResponse.json({
+        answer: `NEER AI: ${createDepthAnswer(lastUserMessage, locationLabel || mapQuery)}`,
+        ...mapFields,
+      });
     }
 
     if (keys.length === 0) {
