@@ -589,15 +589,15 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
                                   ? 'Approximate fishing-area map'
                                   : 'Location map'}
                             </p>
-                            {msg.showMap && msg.mapLocation && (
+                            {msg.googleMapsEmbedUrl || (msg.showMap && msg.mapLocation) ? (
                               <iframe
                                 title={msg.googleMapsEmbedUrl ? 'Google Maps location preview' : 'OpenStreetMap location map'}
-                                src={msg.googleMapsEmbedUrl || getOpenStreetMapEmbedUrl(msg.mapLocation)}
+                                src={msg.googleMapsEmbedUrl || getOpenStreetMapEmbedUrl(msg.mapLocation!)}
                                 className="h-56 sm:h-72 lg:h-96 w-full rounded-2xl border border-gray-700/60 bg-[#07111c]"
                                 loading="lazy"
                                 referrerPolicy={msg.googleMapsEmbedUrl ? 'strict-origin-when-cross-origin' : 'no-referrer'}
                               />
-                            )}
+                            ) : null}
                             {msg.locationLabel && (
                               <p className="text-[#CDCDCD]/80">
                                 Map center: {msg.locationLabel}

@@ -59,9 +59,9 @@ For a current-location question, clearly state that the location comes from the 
 and distinguish known coordinates/place information from unavailable live marine data.`;
 
 const isMapRequest = (text: string) =>
-  /\b(location|map|where|near|nearby|spot|zone|harbou?r|coordinates|place)\b/i.test(text) ||
+  /\b(location|map|where|near|nearby|spots?|zones?|harbou?r|coordinates|place)\b/i.test(text) ||
   /\b(?:jagah|jagha|sthan|naksha|nakshe|loc)\b/i.test(text) ||
-  /\bfish(?:ing)?\b.{0,60}\b(?:in|at|near|around|zone|spot)\b|\b(?:in|at|near|around)\b.{0,60}\bfish(?:ing)?\b/i.test(text) ||
+  /\bfish(?:ing)?\b.{0,60}\b(?:in|at|near|around|zones?|spots?|areas?)\b|\b(?:in|at|near|around)\b.{0,60}\bfish(?:ing)?\b/i.test(text) ||
   /लोकेशन|जगह|स्थान|नक्शा|कहाँ|कहां|मछली.{0,40}(?:पास|में|तट|क्षेत्र)|(?:पास|में|तट).{0,40}मछली/.test(text);
 
 const isRomanHindi = (text: string) =>
@@ -71,7 +71,7 @@ const isDepthQuestion = (text: string) =>
   /\b(depth|how deep|bathymetry|bathymetric|sea floor|seafloor|gehrai|gaharai)\b|गहराई|कितना गहरा/i.test(text);
 
 const isFishingZoneQuestion = (text: string) =>
-  /\b(?:pfz|potential fishing zone|fishing\s+(?:zone|spot|area)|fishing\s+near|nearby\s+fishing)\b/i.test(text) ||
+  /\b(?:pfz|potential fishing zone|fishing\s+(?:zones?|spots?|areas?)|fishing\s+near|nearby\s+fishing|near(?:by)?\s+fishing\s+(?:zones?|spots?|areas?))\b/i.test(text) ||
   /\b(?:machhli|machli)\b.{0,40}\b(?:pakad|catch).{0,30}\b(?:jagah|zone|area|spot)\b|\bfishing\s+zone\b/i.test(text) ||
   /मछली पकड़ने का क्षेत्र|मछली पकड़ने की जगह|पीएफजेड/.test(text);
 
@@ -430,7 +430,7 @@ export async function POST(request: Request) {
     }
 
     const mapFields = {
-      showMap: mapRequest && Boolean(mapCenter),
+      showMap: mapRequest && Boolean(mapCenter || (process.env.GOOGLE_MAPS_EMBED_API_KEY?.trim() && mapQuery)),
       mapLocation: mapCenter,
       locationLabel,
       mapUrl: mapCenter
@@ -445,8 +445,12 @@ export async function POST(request: Request) {
           : mapQuery
             ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`
           : null,
-      googleMapsEmbedUrl: mapCenter && process.env.GOOGLE_MAPS_EMBED_API_KEY?.trim()
-        ? `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(process.env.GOOGLE_MAPS_EMBED_API_KEY.trim())}&q=${encodeURIComponent(`${mapCenter.latitude},${mapCenter.longitude}`)}`
+      googleMapsEmbedUrl: process.env.GOOGLE_MAPS_EMBED_API_KEY?.trim()
+        ? mapCenter
+          ? `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(process.env.GOOGLE_MAPS_EMBED_API_KEY.trim())}&q=${encodeURIComponent(`${mapCenter.latitude},${mapCenter.longitude}`)}`
+          : mapQuery
+            ? `https://www.google.com/maps/embed/v1/search?key=${encodeURIComponent(process.env.GOOGLE_MAPS_EMBED_API_KEY.trim())}&q=${encodeURIComponent(isFishingZoneQuestion(lastUserMessage) ? `fishing areas near ${mapQuery}` : mapQuery)}`
+            : null
         : null,
       marinePoints: [] as MarinePoint[],
       nearbyPlaces,
