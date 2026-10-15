@@ -24,21 +24,23 @@ type NearbyPlace = {
 };
 
 const SYSTEM_PROMPT = `You are NEER AI, a marine information assistant.
-Only answer questions about oceans, seas, rivers, ponds, marine weather, boats, fishing,
-water safety, navigation, bathymetry, ports, and marine locations. For unrelated questions,
-politely say you only provide water and marine information.
-Use only facts you know with confidence or facts explicitly supplied as verified context. If a fact,
-measurement, source, or place cannot be verified, say you do not know; ask a short clarifying question
-when needed. Never invent coordinates, nearby places, distances, fishing zones, measured depths,
-weather, boat counts, or safety conditions.
+Answer only questions about oceans, seas, rivers, lakes, ponds, aquatic life, marine ecosystems,
+fishing, boats, water geography, ports, navigation, bathymetry, and water safety. Politely redirect
+questions that are entirely unrelated to water or marine topics.
+For every in-scope question, give the most useful answer you can. If exact, local, or real-time data
+is unavailable, explain that briefly and provide relevant established background, typical regional
+patterns, or a cautious estimate only when you have a defensible basis. Clearly label estimates and
+historical/general information; never present them as a verified current measurement.
+Never fabricate exact coordinates, nearby places, distances, fishing advisories, measured depths,
+weather, boat counts, or safety conditions. If an exact number is unknown, give qualitative context
+and say what source or additional detail would establish it instead of making up a number.
 There is no connected bathymetry, AIS, live weather, or official Potential Fishing Zone feed. Do not
-claim current conditions or a measured/local depth. A map center is only a geocoded place reference,
-not evidence of water depth or a fishing zone. Direct users to an official live source when relevant.
-OpenStreetMap/OpenSeaMap are map references, not guaranteed live AIS or depth sources.
+claim current conditions. A map center is only a geocoded place reference, not evidence of water
+depth or a fishing zone. OpenStreetMap/OpenSeaMap are map references, not guaranteed live AIS or depth sources.
 Be concise, useful, and answer in the same language and script used by the user.
-Treat every message in the conversation as shared context. Resolve short follow-ups such as “location”
-from the most recent relevant place or marine answer. Do not substitute browser coordinates unless
-the user explicitly asks for their own current location.
+Use conversation history to resolve short follow-ups such as “location” or “how deep” from the most
+recent relevant place and topic. Do not substitute browser coordinates unless the user explicitly
+asks for their own current location.
 For a current-location question, clearly state that the location comes from the user's browser permission
 and distinguish known coordinates/place information from unavailable live marine data.`;
 
@@ -52,11 +54,6 @@ const isDepthQuestion = (text: string) =>
 
 const asksForCurrentLocation = (text: string) =>
   /\b(?:my|current)\s+(?:current\s+)?(?:location|position|coordinates)\b|\bwhere am i\b|\bnear me\b|\baround me\b|\b(?:mera|meri|apni)\s+(?:current\s+)?(?:location|jagah|position|coordinates)\b|मेरी\s+(?:वर्तमान\s+)?(?:लोकेशन|जगह|स्थिति)|मेरा\s+(?:वर्तमान\s+)?(?:लोकेशन|जगह|स्थिति)|मैं\s+(?:अभी\s+)?कहाँ\s+हूँ|मेरे\s+आसपास/i.test(text);
-
-const isLiveDataQuestion = (text: string) =>
-  /\b(now|right now|live|today|forecast|real[- ]time|temperature|wave height|wind speed|boat count|boats|cyclone|warning|pfz|potential fishing zone|fishing zone)\b/i.test(text) ||
-  (/\b(current|currently)\b/i.test(text) && /\b(weather|conditions|temperature|wind|waves|forecast|boats|fishing)\b/i.test(text)) ||
-  /आज|अभी|लाइव|मौजूदा|तापमान|लहर|हवा|चक्रवात|चेतावनी|पीएफजेड|मछली पकड़ने का क्षेत्र/.test(text);
 
 const isMarineTopic = (text: string) =>
   /\b(ocean|sea|marine|river|pond|lake|water|boat|ship|fishing|fish|coast|coastal|harbou?r|port|tide|wave|depth|bathymetry|sail|navigation|pfz)\b/i.test(text) ||
@@ -125,32 +122,11 @@ async function geocodePlace(query: string) {
   }
 }
 
-function createMapAnswer(question: string) {
-  if (/[ऀ-ॿ]/.test(question)) {
-    return 'इस जगह के लिए मेरे पास सत्यापित bathymetry/depth data नहीं है। मैं गहराई का अनुमान लगाकर गलत संख्या नहीं दूँगा। सही गहराई के लिए आधिकारिक nautical chart या survey data देखें।';
-  }
-  return 'I don’t have verified bathymetry data for this location, so I can’t give a reliable depth measurement. I won’t guess a number. Please check an official nautical chart or survey source.';
-}
-
-function createLiveDataAnswer(question: string) {
-  if (/[ऀ-ॿ]/.test(question)) {
-    return 'मेरे पास अभी live marine weather, AIS, cyclone warning या official fishing-zone feed connected नहीं है, इसलिए मैं वर्तमान स्थिति verify नहीं कर सकता। कृपया संबंधित सरकारी/आधिकारिक source देखें।';
-  }
-  return 'I don’t have a connected live marine weather, AIS, cyclone-warning, or official fishing-zone feed, so I can’t verify current conditions. Please check the relevant official source.';
-}
-
 function createOutOfScopeAnswer(question: string) {
   if (/[ऀ-ॿ]/.test(question)) {
     return 'मैं केवल समुद्र, नदियों, पानी, मछली पकड़ने, नौकाओं और marine जानकारी में मदद कर सकता हूँ।';
   }
   return 'I can help with marine and water-related topics such as oceans, rivers, fishing, boats, navigation, and water safety.';
-}
-
-function createNoPlaceAnswer(question: string) {
-  if (/[ऀ-ॿ]/.test(question)) {
-    return 'मैप के लिए जगह का नाम नहीं मिला। कृपया शहर, तट या जलक्षेत्र का नाम बताइए।';
-  }
-  return 'I couldn’t identify a place to center the map. Please include a city, coast, or water body.';
 }
 
 function getNoKeyAnswer(question: string) {
@@ -320,12 +296,7 @@ export async function POST(request: Request) {
     const mapRequest =
       isMapRequest(lastUserMessage) ||
       (isDepthQuestion(lastUserMessage) && Boolean(mapQuery));
-    const specificDepthQuestion =
-      isDepthQuestion(lastUserMessage) &&
-      (Boolean(mapQuery) || (shortContextFollowUp && Boolean(previousUserMessage)));
-    const marineContext = messages.some(
-      (message) => message.sender === 'user' && isMarineTopic(message.text || '')
-    );
+    const marineContext = shortContextFollowUp && isMarineTopic(previousUserMessage);
     const inMarineScope = isMarineTopic(lastUserMessage) || marineContext;
 
     const keys = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_BACKUP]
@@ -370,18 +341,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ answer: `NEER AI: ${createOutOfScopeAnswer(lastUserMessage)}`, ...mapFields });
     }
 
-    if (specificDepthQuestion) {
-      return NextResponse.json({ answer: `NEER AI: ${createMapAnswer(lastUserMessage)}`, ...mapFields });
-    }
-
-    if (isLiveDataQuestion(lastUserMessage)) {
-      return NextResponse.json({ answer: `NEER AI: ${createLiveDataAnswer(lastUserMessage)}`, ...mapFields });
-    }
-
-    if (mapRequest && !mapCenter) {
-      return NextResponse.json({ answer: `NEER AI: ${createNoPlaceAnswer(lastUserMessage)}`, ...mapFields });
-    }
-
     if (keys.length === 0) {
       const fallbackAnswer = getNoKeyAnswer(lastUserMessage);
       if (fallbackAnswer) {
@@ -396,7 +355,9 @@ export async function POST(request: Request) {
 
     const mapContext = mapCenter
       ? `\nVerified map lookup: OpenStreetMap resolved the requested map center to ${locationLabel || mapQuery || 'the supplied browser location'} (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). This is only a map reference. It does not verify depth, a fishing zone, weather, or live marine conditions.${nearbyPlaces.length ? ` Nearby mapped water/marine features: ${nearbyPlaces.map((place) => `${place.name} (${place.distanceKm.toFixed(2)} km)`).join(', ')}.` : ''}`
-      : '';
+      : mapRequest
+        ? '\nMap lookup note: No place could be verified from the query. Do not invent a map center or coordinates. Still answer with useful general marine information, and ask for a city, coast, or water body if a location-specific answer is needed.'
+        : '';
     const contents = messages
       .filter((message) => message.text)
       .slice(-20)
