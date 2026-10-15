@@ -5,6 +5,9 @@ export const maxDuration = 60;
 type ChatMessage = {
   sender: 'user' | 'ai';
   text?: string;
+  showMap?: boolean;
+  mapLocation?: { latitude: number; longitude: number } | null;
+  locationLabel?: string | null;
 };
 
 type ChatRequest = {
@@ -42,16 +45,21 @@ There is no connected bathymetry, AIS, live weather, or official Potential Fishi
 claim current conditions. A map center is only a geocoded place reference, not evidence of water
 depth or a fishing zone. OpenStreetMap/OpenSeaMap are map references, not guaranteed live AIS or depth sources.
 Be concise, useful, and answer in the same language and script used by the user.
-Use conversation history to resolve short follow-ups such as “location” or “how deep” from the most
-recent relevant place and topic. Do not substitute browser coordinates unless the user explicitly
-asks for their own current location.
+Use conversation history to resolve short follow-ups such as “location”, “location do”, “mumbai mai”,
+or “how deep” from the most recent relevant place and topic. For Romanized Hindi/Hinglish, reply in
+Romanized Hindi/Hinglish rather than switching to English. Do not substitute browser coordinates unless
+the user explicitly asks for their own current location.
 For a current-location question, clearly state that the location comes from the user's browser permission
 and distinguish known coordinates/place information from unavailable live marine data.`;
 
 const isMapRequest = (text: string) =>
   /\b(location|map|where|near|nearby|spot|zone|harbou?r|coordinates|place)\b/i.test(text) ||
+  /\b(?:jagah|jagha|sthan|naksha|nakshe|loc)\b/i.test(text) ||
   /\bfish(?:ing)?\b.{0,60}\b(?:in|at|near|around|zone|spot)\b|\b(?:in|at|near|around)\b.{0,60}\bfish(?:ing)?\b/i.test(text) ||
   /लोकेशन|जगह|स्थान|नक्शा|कहाँ|कहां|मछली.{0,40}(?:पास|में|तट|क्षेत्र)|(?:पास|में|तट).{0,40}मछली/.test(text);
+
+const isRomanHindi = (text: string) =>
+  /\b(?:mai|mein|kaha|kahaan|kahan|hai|hain|do|batao|btao|dikhao|chahiye|mujhe|ke|ki|ka|se|par|wala|wali)\b/i.test(text);
 
 const isDepthQuestion = (text: string) =>
   /\b(depth|how deep|bathymetry|bathymetric|sea floor|seafloor|gehrai|gaharai)\b|गहराई|कितना गहरा/i.test(text);
@@ -72,7 +80,9 @@ const PLACE_STOP_WORDS = new Set([
   'for', 'from', 'give', 'in', 'is', 'location', 'map', 'me', 'near', 'nearby', 'of', 'on',
   'please', 'show', 'spot', 'spots', 'tell', 'the', 'to', 'what', 'where', 'which', 'zone', 'area',
   'good', 'best', 'some', 'nearby', 'beach', 'beaches', 'water', 'marine', 'port', 'harbor', 'harbour',
-  'today', 'live', 'now', 'मुझे', 'बताओ', 'बताइए', 'दिखाओ', 'जगह', 'लोकेशन', 'नक्शा',
+  'today', 'live', 'now', 'hai', 'hain', 'ho', 'hu', 'hun', 'mai', 'mein', 'kaha', 'kahaan', 'kahan',
+  'do', 'dena', 'batao', 'btao', 'dikhao', 'chahiye', 'mujhe', 'mujhko', 'jagah', 'jagha', 'sthan',
+  'ka', 'ki', 'ke', 'se', 'par', 'wala', 'wali', 'मुझे', 'बताओ', 'बताइए', 'दिखाओ', 'जगह', 'लोकेशन', 'नक्शा',
   'मछली', 'पकड़ने', 'क्षेत्र', 'पास', 'में', 'का', 'की', 'के', 'आज', 'अभी', 'गहराई',
 ]);
 
@@ -148,21 +158,32 @@ function createDepthAnswer(question: string, location: string | null) {
 
 function createFishingZoneAnswer(question: string, location: string | null) {
   const placeText = `${question} ${location || ''}`;
+  const isMumbai = /\bmumbai\b/i.test(placeText);
   if (/\blacknow\b/i.test(placeText)) {
     return 'Lucknow is inland, so there is no nearby marine fishing zone or sea-based INCOIS PFZ. If you mean freshwater fishing, name a lake or reservoir; local access and fishing rules need to be checked separately.';
   }
-  const mumbaiContext = /\bmumbai\b/i.test(placeText)
+  const mumbaiContext = isMumbai
     ? 'Mumbai is on Maharashtra’s Arabian Sea coast. '
     : '';
+  if (isRomanHindi(question)) {
+    const hindiPlace = location && !isMumbai ? `${location} ke aas-paas ` : '';
+    const coastalContext = isMumbai
+      ? 'Mumbai Maharashtra ke Arabian Sea coast par hai. '
+      : '';
+    return `${coastalContext}${hindiPlace}fishing areas mausam, machhli ki species aur samundar ki conditions ke saath badalte hain. Mere paas live INCOIS Potential Fishing Zone (PFZ) feed nahi hai, isliye main kisi exact jagah ya coordinate ko aaj ka verified fishing zone nahi bataunga. ${location ? 'Map marker sirf location ka reference hai, fishing point nahi. ' : ''}Aaj ke exact PFZ coordinates ke liye INCOIS ki latest advisory dekhein.`;
+  }
   if (/[ऀ-ॿ]/.test(question)) {
     const place = location ? `${location} के आसपास ` : '';
     return `${place}समुद्री fishing क्षेत्र मौसम, प्रजाति और समुद्र की मौजूदा स्थिति के अनुसार बदलते हैं। NEER के पास live INCOIS Potential Fishing Zone (PFZ) feed नहीं है, इसलिए मैं किसी खास जगह या coordinate को आज का verified fishing zone नहीं बता सकता। ${location ? `मैप ${location} का सामान्य reference है, fishing point नहीं। ` : ''}आज के PFZ coordinates के लिए INCOIS की ताज़ा advisory देखें।`;
   }
-  const place = location ? `For ${location}, ` : '';
+  const place = location && !isMumbai ? `For ${location}, ` : '';
   return `${mumbaiContext}${place}fishing grounds vary with season, species, and changing sea conditions. NEER has no live INCOIS Potential Fishing Zone (PFZ) feed, so I can’t label a specific spot or coordinate as today’s verified fishing zone. ${location ? 'The map marks the general place reference, not a fishing point. ' : ''}For current PFZ coordinates, check the latest INCOIS advisory.`;
 }
 
-function createFishingLocationAnswer(location: string, mapCenter: { latitude: number; longitude: number }) {
+function createFishingLocationAnswer(question: string, location: string, mapCenter: { latitude: number; longitude: number }) {
+  if (isRomanHindi(question)) {
+    return `Pichhle fishing-zone sawaal ke liye map yahan ${location} ko dikhata hai (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). Yeh city/place reference hai, samundar mein verified fishing/PFZ coordinate nahi. Mere paas live PFZ feed nahi hai; aaj ke exact fishing coordinates ke liye INCOIS ki latest advisory dekhein.`;
+  }
   return `For your previous fishing-zone question, the map is centered on ${location} (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). This is a general place reference, not a verified offshore fishing/PFZ coordinate. I don’t have a live PFZ feed; check the latest INCOIS advisory for current fishing-zone coordinates.`;
 }
 
@@ -322,21 +343,28 @@ export async function POST(request: Request) {
 
     const priorUserMessages = userMessages.slice(0, -1);
     const previousUserMessage = priorUserMessages.at(-1)?.text?.trim() || '';
+    const shortFollowUp = lastUserMessage.split(/\s+/).length <= 6;
     const shortContextFollowUp =
       lastUserMessage.split(/\s+/).length <= 4 &&
       (isMapRequest(lastUserMessage) || isDepthQuestion(lastUserMessage));
-    const mapQuerySource = shortContextFollowUp && previousUserMessage
-      ? previousUserMessage
-      : lastUserMessage;
+    const previousIsFishingQuestion = isFishingZoneQuestion(previousUserMessage);
+    const contextualPlaceFollowUp =
+      shortFollowUp && previousIsFishingQuestion && !isMapRequest(lastUserMessage) && Boolean(getPlaceQuery(lastUserMessage));
+    const mapQuerySource = contextualPlaceFollowUp
+      ? lastUserMessage
+      : shortContextFollowUp && previousUserMessage
+        ? previousUserMessage
+        : lastUserMessage;
     const mapQuery = getPlaceQuery(mapQuerySource);
     const currentLocationQuestion = asksForCurrentLocation(lastUserMessage);
     const mapRequest =
       isMapRequest(lastUserMessage) ||
-      (isDepthQuestion(lastUserMessage) && Boolean(mapQuery));
+      (isDepthQuestion(lastUserMessage) && Boolean(mapQuery)) ||
+      contextualPlaceFollowUp;
     const specificDepthQuestion = isDepthQuestion(lastUserMessage);
     const fishingLocationFollowUp =
-      shortContextFollowUp && isMapRequest(lastUserMessage) && isFishingZoneQuestion(previousUserMessage);
-    const marineContext = shortContextFollowUp && isMarineTopic(previousUserMessage);
+      previousIsFishingQuestion && (shortContextFollowUp && isMapRequest(lastUserMessage) || contextualPlaceFollowUp);
+    const marineContext = shortFollowUp && isMarineTopic(previousUserMessage);
     const inMarineScope = isMarineTopic(lastUserMessage) || marineContext;
 
     const keys = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_BACKUP]
@@ -352,14 +380,27 @@ export async function POST(request: Request) {
       : null;
 
     const textCoordinates = mapRequest ? parseCoordinates(lastUserMessage) : null;
-    let mapCenter = validLocation || textCoordinates;
-    let locationLabel: string | null = null;
+    const previousMapMessage = shortContextFollowUp || contextualPlaceFollowUp
+      ? [...messages].reverse().find((message) =>
+          message.sender === 'ai' &&
+          message.showMap &&
+          message.mapLocation &&
+          Number.isFinite(message.mapLocation.latitude) &&
+          Number.isFinite(message.mapLocation.longitude) &&
+          Math.abs(message.mapLocation.latitude) <= 90 &&
+          Math.abs(message.mapLocation.longitude) <= 180
+        )
+      : undefined;
+    let mapCenter = validLocation || textCoordinates || previousMapMessage?.mapLocation || null;
+    let locationLabel: string | null = previousMapMessage?.locationLabel || null;
     let nearbyPlaces: NearbyPlace[] = [];
     if (mapRequest && mapCenter) {
-      [locationLabel, nearbyPlaces] = await Promise.all([
+      const [resolvedLocationLabel, resolvedNearbyPlaces] = await Promise.all([
         reverseGeocode(mapCenter),
         findNearbyPlaces(mapCenter),
       ]);
+      locationLabel = resolvedLocationLabel || locationLabel;
+      nearbyPlaces = resolvedNearbyPlaces;
     } else if (mapRequest && mapQuery) {
       const result = await geocodePlace(mapQuery);
       if (result) {
@@ -373,6 +414,11 @@ export async function POST(request: Request) {
       showMap: mapRequest && Boolean(mapCenter),
       mapLocation: mapCenter,
       locationLabel,
+      mapUrl: mapCenter
+        ? `https://www.openstreetmap.org/?mlat=${mapCenter.latitude}&mlon=${mapCenter.longitude}#map=12/${mapCenter.latitude}/${mapCenter.longitude}`
+        : mapQuery
+          ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(mapQuery)}`
+          : null,
       marinePoints: [] as MarinePoint[],
       nearbyPlaces,
     };
@@ -390,14 +436,21 @@ export async function POST(request: Request) {
 
     if (fishingLocationFollowUp && mapCenter) {
       return NextResponse.json({
-        answer: `NEER AI: ${createFishingLocationAnswer(locationLabel || mapQuery || 'the requested place', mapCenter)}`,
+        answer: `NEER AI: ${createFishingLocationAnswer(lastUserMessage, locationLabel || mapQuery || 'the requested place', mapCenter)}`,
         ...mapFields,
       });
     }
 
+    if (fishingLocationFollowUp) {
+      const answer = isRomanHindi(lastUserMessage)
+        ? `Pichhle fishing-zone sawaal ka context samajh raha hoon, lekin map ke liye place verify nahi ho paya. ${mapQuery ? `${mapQuery} ka map is link se kholen: ${mapFields.mapUrl}. ` : ''}Yeh city/place location hai, exact offshore PFZ coordinate nahi.`
+        : `Your previous question was about a fishing zone, but I couldn’t verify a map center. Open this place search: ${mapFields.mapUrl || 'search for the city on OpenStreetMap'}. It is a city reference, not an exact offshore PFZ coordinate.`;
+      return NextResponse.json({ answer: `NEER AI: ${answer}`, ...mapFields });
+    }
+
     if (isFishingZoneQuestion(lastUserMessage)) {
       return NextResponse.json({
-        answer: `NEER AI: ${createFishingZoneAnswer(lastUserMessage, locationLabel || mapQuery)}`,
+        answer: `NEER AI: ${createFishingZoneAnswer(lastUserMessage, mapQuery || locationLabel)}`,
         ...mapFields,
       });
     }

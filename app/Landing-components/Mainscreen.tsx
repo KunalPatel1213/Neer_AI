@@ -10,6 +10,7 @@ type Message = {
   showMap?: boolean;
   mapLocation?: { latitude: number; longitude: number } | null;
   locationLabel?: string | null;
+  mapUrl?: string | null;
   marinePoints?: Array<{ label: string; value: string }>;
   nearbyPlaces?: Array<{ name: string; type: string; distanceKm: number }>;
 };
@@ -52,6 +53,43 @@ type MainscreenProps = {
 const asksForCurrentLocation = (text: string) =>
   /\b(?:my|current)\s+(?:current\s+)?(?:location|position|coordinates)\b|\bwhere am i\b|\bnear me\b|\baround me\b|\b(?:mera|meri|apni)\s+(?:current\s+)?(?:location|jagah|position|coordinates)\b|मेरी\s+(?:वर्तमान\s+)?(?:लोकेशन|जगह|स्थिति)|मेरा\s+(?:वर्तमान\s+)?(?:लोकेशन|जगह|स्थिति)|मैं\s+(?:अभी\s+)?कहाँ\s+हूँ|मेरे\s+आसपास/i.test(text);
 
+function renderInlineMarkdown(text: string) {
+  return text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={index} className="font-medium text-white">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={index}>{part.slice(1, -1)}</em>;
+    }
+    return part;
+  });
+}
+
+function renderAssistantText(text?: string) {
+  const cleanText = (text || '').replace(/^\s*NEER AI:\s*/i, '').trim();
+  return cleanText.split('\n').map((rawLine, index) => {
+    const line = rawLine.trim();
+    if (!line) return <div key={index} className="h-2" />;
+
+    const heading = line.match(/^#{1,3}\s+(.+)$/);
+    if (heading) {
+      return <p key={index} className="font-medium text-white">{renderInlineMarkdown(heading[1])}</p>;
+    }
+
+    const bullet = line.match(/^(?:[-*]|\d+[.)])\s+(.+)$/);
+    if (bullet) {
+      return (
+        <p key={index} className="flex gap-2 pl-1">
+          <span className="text-cyan-300">•</span>
+          <span>{renderInlineMarkdown(bullet[1])}</span>
+        </p>
+      );
+    }
+
+    return <p key={index}>{renderInlineMarkdown(line)}</p>;
+  });
+}
+
 const getOpenStreetMapEmbedUrl = (location: { latitude: number; longitude: number }) => {
   const latitudeSpan = 0.08;
   const longitudeSpan = latitudeSpan / Math.max(0.2, Math.cos((location.latitude * Math.PI) / 180));
@@ -68,14 +106,10 @@ const getOpenSeaMapUrl = (location: { latitude: number; longitude: number }) =>
   `https://map.openseamap.org/?lang=en&zoom=12&lat=${location.latitude}&lon=${location.longitude}`;
 
 const THINKING_STEPS = [
-  { agent: "Ocean Analysis", text: "Analyzing ocean & marine conditions..." },
-  { agent: "Weather", text: "Fetching satellite & GIS weather data..." },
-  { agent: "Fishing / PFZ", text: "Checking Potential Fishing Zones (PFZ)..." },
-  { agent: "Hazards", text: "Evaluating hazards & cyclone warnings..." },
-  { agent: "Ocean Conditions", text: "Calculating wave height & wind speeds..." },
-  { agent: "Ocean Analysis", text: "Analyzing sea surface temperature (SST)..." },
-  { agent: "Geofencing", text: "Checking geofencing & restricted marine areas..." },
-  { agent: "Forecast / Planning", text: "Finalizing evidence-based insights..." }
+  { agent: "NEER AI", text: "Understanding your question..." },
+  { agent: "Conversation context", text: "Connecting this with the earlier messages..." },
+  { agent: "Map lookup", text: "Resolving the requested place..." },
+  { agent: "NEER AI", text: "Preparing a clear, helpful answer..." }
 ];
 
 const Mainscreen = ({ onLogout }: MainscreenProps) => {
@@ -120,16 +154,22 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
           localStorage.removeItem('neer_conversations');
         }
       }
-      const newChat: Conversation = {
-        id: Date.now(),
-        title: `Conversation ${previousChats.length + 1}`,
-        messages: [],
-      };
-      const updatedChats = [...previousChats, newChat];
-      setConversations(updatedChats);
-      setCurrentChatId(newChat.id);
-      setMessages([]);
-      localStorage.setItem('neer_conversations', JSON.stringify(updatedChats));
+      const latestChat = previousChats.at(-1);
+      if (latestChat && Array.isArray(latestChat.messages)) {
+        setConversations(previousChats);
+        setCurrentChatId(latestChat.id);
+        setMessages(latestChat.messages);
+      } else {
+        const newChat: Conversation = {
+          id: Date.now(),
+          title: 'Conversation 1',
+          messages: [],
+        };
+        setConversations([newChat]);
+        setCurrentChatId(newChat.id);
+        setMessages([]);
+        localStorage.setItem('neer_conversations', JSON.stringify([newChat]));
+      }
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -294,6 +334,7 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
         showMap?: boolean;
         mapLocation?: { latitude: number; longitude: number } | null;
         locationLabel?: string | null;
+        mapUrl?: string | null;
         marinePoints?: Array<{ label: string; value: string }>;
         nearbyPlaces?: Array<{ name: string; type: string; distanceKm: number }>;
         error?: string;
@@ -310,6 +351,7 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
           showMap: data.showMap,
           mapLocation: data.mapLocation,
           locationLabel: data.locationLabel,
+          mapUrl: data.mapUrl,
           marinePoints: data.marinePoints,
           nearbyPlaces: data.nearbyPlaces,
         },
@@ -531,25 +573,29 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
                       </div>
 
                       <div className="pl-11 space-y-3 text-xs md:text-sm text-[#CDCDCD]/90">
-                        <p className="font-light whitespace-pre-wrap">{msg.text}</p>
-                        {msg.showMap && msg.mapLocation && (
+                        <div className="space-y-2 font-light">{renderAssistantText(msg.text)}</div>
+                        {((msg.showMap && msg.mapLocation) || msg.mapUrl) && (
                           <div className="space-y-3 rounded-3xl border border-blue-400/20 bg-[#0b1b2a]/70 p-3">
                             <p className="text-sm font-medium text-white">Location map</p>
-                            <iframe
-                              title="OpenStreetMap location map"
-                              src={getOpenStreetMapEmbedUrl(msg.mapLocation)}
-                              className="h-56 sm:h-72 lg:h-96 w-full rounded-2xl border border-gray-700/60 bg-[#07111c]"
-                              loading="lazy"
-                              referrerPolicy="no-referrer"
-                            />
+                            {msg.showMap && msg.mapLocation && (
+                              <iframe
+                                title="OpenStreetMap location map"
+                                src={getOpenStreetMapEmbedUrl(msg.mapLocation)}
+                                className="h-56 sm:h-72 lg:h-96 w-full rounded-2xl border border-gray-700/60 bg-[#07111c]"
+                                loading="lazy"
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
                             {msg.locationLabel && (
                               <p className="text-[#CDCDCD]/80">
                                 Map center: {msg.locationLabel}
                               </p>
                             )}
-                            <p className="text-[#CDCDCD]/60">
-                              Coordinates: {msg.mapLocation.latitude.toFixed(5)}, {msg.mapLocation.longitude.toFixed(5)}
-                            </p>
+                            {msg.mapLocation && (
+                              <p className="text-[#CDCDCD]/60">
+                                Coordinates: {msg.mapLocation.latitude.toFixed(5)}, {msg.mapLocation.longitude.toFixed(5)}
+                              </p>
+                            )}
                             {msg.marinePoints && msg.marinePoints.length > 0 && (
                               <ul className="space-y-1.5 border-t border-white/10 pt-2 text-[#CDCDCD]/85">
                                 {msg.marinePoints.map((point) => (
@@ -571,14 +617,28 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
                                 </ul>
                               </div>
                             )}
-                            <a
-                              href={getOpenSeaMapUrl(msg.mapLocation)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-blue-300 underline"
-                            >
-                              Open OpenSeaMap
-                            </a>
+                            <div className="flex flex-wrap gap-4">
+                              {msg.mapUrl && (
+                                <a
+                                  href={msg.mapUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-blue-300 underline"
+                                >
+                                  Open in OpenStreetMap
+                                </a>
+                              )}
+                              {msg.mapLocation && (
+                                <a
+                                  href={getOpenSeaMapUrl(msg.mapLocation)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-blue-300 underline"
+                                >
+                                  Open OpenSeaMap
+                                </a>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
