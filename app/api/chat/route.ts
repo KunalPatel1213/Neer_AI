@@ -56,6 +56,10 @@ const isMapRequest = (text: string) =>
 const isDepthQuestion = (text: string) =>
   /\b(depth|how deep|bathymetry|bathymetric|sea floor|seafloor|gehrai|gaharai)\b|गहराई|कितना गहरा/i.test(text);
 
+const isFishingZoneQuestion = (text: string) =>
+  /\b(?:pfz|potential fishing zone|fishing\s+(?:zone|spot|area)|fishing\s+near|nearby\s+fishing)\b/i.test(text) ||
+  /मछली पकड़ने का क्षेत्र|मछली पकड़ने की जगह|पीएफजेड/.test(text);
+
 const asksForCurrentLocation = (text: string) =>
   /\b(?:my|current)\s+(?:current\s+)?(?:location|position|coordinates)\b|\bwhere am i\b|\bnear me\b|\baround me\b|\b(?:mera|meri|apni)\s+(?:current\s+)?(?:location|jagah|position|coordinates)\b|मेरी\s+(?:वर्तमान\s+)?(?:लोकेशन|जगह|स्थिति)|मेरा\s+(?:वर्तमान\s+)?(?:लोकेशन|जगह|स्थिति)|मैं\s+(?:अभी\s+)?कहाँ\s+हूँ|मेरे\s+आसपास/i.test(text);
 
@@ -140,6 +144,26 @@ function createDepthAnswer(question: string, location: string | null) {
   }
   const englishPlace = location ? `${location}: ` : '';
   return `${englishPlace}depth varies across a waterbody; maintained navigation channels, shorelines, and tidal areas can differ substantially. I don’t have a verified hydrographic survey for this point, so a meter value would be a guess. For a precise current depth, use an official nautical chart or port survey. The map marker identifies a place, not its depth.`;
+}
+
+function createFishingZoneAnswer(question: string, location: string | null) {
+  const placeText = `${question} ${location || ''}`;
+  if (/\blacknow\b/i.test(placeText)) {
+    return 'Lucknow is inland, so there is no nearby marine fishing zone or sea-based INCOIS PFZ. If you mean freshwater fishing, name a lake or reservoir; local access and fishing rules need to be checked separately.';
+  }
+  const mumbaiContext = /\bmumbai\b/i.test(placeText)
+    ? 'Mumbai is on Maharashtra’s Arabian Sea coast. '
+    : '';
+  if (/[ऀ-ॿ]/.test(question)) {
+    const place = location ? `${location} के आसपास ` : '';
+    return `${place}समुद्री fishing क्षेत्र मौसम, प्रजाति और समुद्र की मौजूदा स्थिति के अनुसार बदलते हैं। NEER के पास live INCOIS Potential Fishing Zone (PFZ) feed नहीं है, इसलिए मैं किसी खास जगह या coordinate को आज का verified fishing zone नहीं बता सकता। ${location ? `मैप ${location} का सामान्य reference है, fishing point नहीं। ` : ''}आज के PFZ coordinates के लिए INCOIS की ताज़ा advisory देखें।`;
+  }
+  const place = location ? `For ${location}, ` : '';
+  return `${mumbaiContext}${place}fishing grounds vary with season, species, and changing sea conditions. NEER has no live INCOIS Potential Fishing Zone (PFZ) feed, so I can’t label a specific spot or coordinate as today’s verified fishing zone. ${location ? 'The map marks the general place reference, not a fishing point. ' : ''}For current PFZ coordinates, check the latest INCOIS advisory.`;
+}
+
+function createFishingLocationAnswer(location: string, mapCenter: { latitude: number; longitude: number }) {
+  return `For your previous fishing-zone question, the map is centered on ${location} (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). This is a general place reference, not a verified offshore fishing/PFZ coordinate. I don’t have a live PFZ feed; check the latest INCOIS advisory for current fishing-zone coordinates.`;
 }
 
 function getNoKeyAnswer(question: string) {
@@ -310,6 +334,8 @@ export async function POST(request: Request) {
       isMapRequest(lastUserMessage) ||
       (isDepthQuestion(lastUserMessage) && Boolean(mapQuery));
     const specificDepthQuestion = isDepthQuestion(lastUserMessage);
+    const fishingLocationFollowUp =
+      shortContextFollowUp && isMapRequest(lastUserMessage) && isFishingZoneQuestion(previousUserMessage);
     const marineContext = shortContextFollowUp && isMarineTopic(previousUserMessage);
     const inMarineScope = isMarineTopic(lastUserMessage) || marineContext;
 
@@ -358,6 +384,20 @@ export async function POST(request: Request) {
     if (specificDepthQuestion) {
       return NextResponse.json({
         answer: `NEER AI: ${createDepthAnswer(lastUserMessage, locationLabel || mapQuery)}`,
+        ...mapFields,
+      });
+    }
+
+    if (fishingLocationFollowUp && mapCenter) {
+      return NextResponse.json({
+        answer: `NEER AI: ${createFishingLocationAnswer(locationLabel || mapQuery || 'the requested place', mapCenter)}`,
+        ...mapFields,
+      });
+    }
+
+    if (isFishingZoneQuestion(lastUserMessage)) {
+      return NextResponse.json({
+        answer: `NEER AI: ${createFishingZoneAnswer(lastUserMessage, locationLabel || mapQuery)}`,
         ...mapFields,
       });
     }
