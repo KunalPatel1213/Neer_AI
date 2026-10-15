@@ -89,7 +89,7 @@ const PLACE_STOP_WORDS = new Set([
   'good', 'best', 'some', 'nearby', 'beach', 'beaches', 'water', 'marine', 'port', 'harbor', 'harbour',
   'today', 'live', 'now', 'hai', 'hain', 'ho', 'hu', 'hun', 'mai', 'mein', 'kaha', 'kahaan', 'kahan',
   'do', 'dena', 'batao', 'btao', 'dikhao', 'chahiye', 'mujhe', 'mujhko', 'jagah', 'jagha', 'sthan',
-  'ka', 'ki', 'ke', 'se', 'par', 'wala', 'wali', 'मुझे', 'बताओ', 'बताइए', 'दिखाओ', 'जगह', 'लोकेशन', 'नक्शा',
+  'kya', 'hai', 'kaha', 'yaha', 'yahan', 'ka', 'ki', 'ke', 'se', 'par', 'wala', 'wali', 'मुझे', 'बताओ', 'बताइए', 'दिखाओ', 'जगह', 'लोकेशन', 'नक्शा',
   'मछली', 'पकड़ने', 'क्षेत्र', 'पास', 'में', 'का', 'की', 'के', 'आज', 'अभी', 'गहराई',
 ]);
 
