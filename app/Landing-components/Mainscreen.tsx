@@ -92,16 +92,65 @@ function renderAssistantText(text?: string) {
   });
 }
 
-const getOpenStreetMapEmbedUrl = (location: { latitude: number; longitude: number }) => {
-  const latitudeSpan = 0.08;
-  const longitudeSpan = latitudeSpan / Math.max(0.2, Math.cos((location.latitude * Math.PI) / 180));
-  const bounds = [
-    location.longitude - longitudeSpan,
-    location.latitude - latitudeSpan,
-    location.longitude + longitudeSpan,
-    location.latitude + latitudeSpan,
-  ].join(',');
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${bounds}&layer=mapnik&marker=${location.latitude},${location.longitude}`;
+const OpenStreetMapPreview = ({ location }: { location: { latitude: number; longitude: number } }) => {
+  const zoom = 12;
+  const tileSize = 256;
+  const worldSize = 2 ** zoom;
+  const latitude = Math.max(-85.0511, Math.min(85.0511, location.latitude));
+  const longitude = Math.max(-180, Math.min(180, location.longitude));
+  const x = ((longitude + 180) / 360) * worldSize;
+  const latitudeRadians = (latitude * Math.PI) / 180;
+  const y = ((1 - Math.asinh(Math.tan(latitudeRadians)) / Math.PI) / 2) * worldSize;
+  const centerTileX = Math.floor(x);
+  const centerTileY = Math.floor(y);
+  const tileGridOffsetX = (x - centerTileX + 1) * tileSize;
+  const tileGridOffsetY = (y - centerTileY + 1) * tileSize;
+  const tiles = [];
+
+  for (let row = -1; row <= 1; row += 1) {
+    for (let column = -1; column <= 1; column += 1) {
+      const tileX = ((centerTileX + column) % worldSize + worldSize) % worldSize;
+      const tileY = centerTileY + row;
+      if (tileY < 0 || tileY >= worldSize) continue;
+      tiles.push({ tileX, tileY, column: column + 1, row: row + 1 });
+    }
+  }
+
+  return (
+    <div
+      role="img"
+      aria-label={`Map preview centered on ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`}
+      className="relative h-56 sm:h-72 lg:h-96 w-full overflow-hidden rounded-2xl border border-gray-700/60 bg-[#dbe6eb]"
+    >
+      <div
+        className="absolute grid h-[768px] w-[768px] grid-cols-3 grid-rows-3"
+        style={{ left: `calc(50% - ${tileGridOffsetX}px)`, top: `calc(50% - ${tileGridOffsetY}px)` }}
+      >
+        {tiles.map((tile) => (
+          <img
+            key={`${tile.tileX}-${tile.tileY}`}
+            src={`https://tile.openstreetmap.org/${zoom}/${tile.tileX}/${tile.tileY}.png`}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+            className="h-64 w-64 max-w-none"
+          />
+        ))}
+      </div>
+      <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
+        <span className="block h-5 w-5 rounded-full border-[3px] border-white bg-cyan-500 shadow-[0_1px_8px_rgba(0,0,0,0.8)]" />
+      </div>
+      <a
+        href="https://www.openstreetmap.org/copyright"
+        target="_blank"
+        rel="noreferrer"
+        className="absolute bottom-1 right-1 z-20 rounded bg-white/90 px-1.5 py-0.5 text-[10px] text-slate-800"
+      >
+        © OpenStreetMap contributors
+      </a>
+    </div>
+  );
 };
 
 const getOpenSeaMapUrl = (location: { latitude: number; longitude: number }) =>
@@ -590,13 +639,17 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
                                   : 'Location map'}
                             </p>
                             {msg.googleMapsEmbedUrl || (msg.showMap && msg.mapLocation) ? (
-                              <iframe
-                                title={msg.googleMapsEmbedUrl ? 'Google Maps location preview' : 'OpenStreetMap location map'}
-                                src={msg.googleMapsEmbedUrl || getOpenStreetMapEmbedUrl(msg.mapLocation!)}
-                                className="h-56 sm:h-72 lg:h-96 w-full rounded-2xl border border-gray-700/60 bg-[#07111c]"
-                                loading="lazy"
-                                referrerPolicy={msg.googleMapsEmbedUrl ? 'strict-origin-when-cross-origin' : 'no-referrer'}
-                              />
+                              msg.googleMapsEmbedUrl ? (
+                                <iframe
+                                  title="Google Maps location preview"
+                                  src={msg.googleMapsEmbedUrl}
+                                  className="h-56 sm:h-72 lg:h-96 w-full rounded-2xl border border-gray-700/60 bg-[#07111c]"
+                                  loading="lazy"
+                                  referrerPolicy="strict-origin-when-cross-origin"
+                                />
+                              ) : msg.mapLocation ? (
+                                <OpenStreetMapPreview location={msg.mapLocation} />
+                              ) : null
                             ) : null}
                             {msg.locationLabel && (
                               <p className="text-[#CDCDCD]/80">
