@@ -162,29 +162,32 @@ function createFishingZoneAnswer(question: string, location: string | null) {
   if (/\blacknow\b/i.test(placeText)) {
     return 'Lucknow is inland, so there is no nearby marine fishing zone or sea-based INCOIS PFZ. If you mean freshwater fishing, name a lake or reservoir; local access and fishing rules need to be checked separately.';
   }
-  const mumbaiContext = isMumbai
-    ? 'Mumbai is on Maharashtra’s Arabian Sea coast. '
-    : '';
   if (isRomanHindi(question)) {
-    const hindiPlace = location && !isMumbai ? `${location} ke aas-paas ` : '';
-    const coastalContext = isMumbai
-      ? 'Mumbai Maharashtra ke Arabian Sea coast par hai. '
-      : '';
-    return `${coastalContext}${hindiPlace}fishing areas mausam, machhli ki species aur samundar ki conditions ke saath badalte hain. Mere paas live INCOIS Potential Fishing Zone (PFZ) feed nahi hai, isliye main kisi exact jagah ya coordinate ko aaj ka verified fishing zone nahi bataunga. ${location ? 'Map marker sirf location ka reference hai, fishing point nahi. ' : ''}Aaj ke exact PFZ coordinates ke liye INCOIS ki latest advisory dekhein.`;
+    if (isMumbai) {
+      return 'Mumbai Maharashtra ke Arabian Sea coast par hai. Ek rough demo fishing-area reference Mumbai coast se west ki taraf Arabian Sea ka offshore hissa hai. Map par approximate point dikhaya hai—ye official/live PFZ coordinate ya guaranteed fishing spot nahi hai. Nikalne se pehle local access aur sea conditions check kar lena.';
+    }
+    const place = location ? `${location} ke aas-paas ` : 'Is jagah ke aas-paas ';
+    return `${place}coastal/offshore waters ek broad fishing-area estimate hain. Exact area season, fish species aur sea conditions se badalta hai; map marker ko demo reference samjhein, official PFZ point nahi. Nikalne se pehle local access aur sea conditions check kar lena.`;
   }
   if (/[ऀ-ॿ]/.test(question)) {
-    const place = location ? `${location} के आसपास ` : '';
-    return `${place}समुद्री fishing क्षेत्र मौसम, प्रजाति और समुद्र की मौजूदा स्थिति के अनुसार बदलते हैं। NEER के पास live INCOIS Potential Fishing Zone (PFZ) feed नहीं है, इसलिए मैं किसी खास जगह या coordinate को आज का verified fishing zone नहीं बता सकता। ${location ? `मैप ${location} का सामान्य reference है, fishing point नहीं। ` : ''}आज के PFZ coordinates के लिए INCOIS की ताज़ा advisory देखें।`;
+    if (isMumbai) {
+      return 'मुंबई महाराष्ट्र के अरब सागर तट पर है। एक सामान्य demo अनुमान के तौर पर, मुंबई तट से पश्चिम की ओर अरब सागर का offshore हिस्सा fishing-area reference हो सकता है। मैप पर दिखाया बिंदु approximate है—यह आधिकारिक/live PFZ coordinate या पक्का fishing spot नहीं है। जाने से पहले स्थानीय अनुमति और समुद्र की स्थिति जाँचें।';
+    }
+    const place = location ? `${location} के आसपास ` : 'इस जगह के आसपास ';
+    return `${place}तटीय/offshore पानी एक broad fishing-area estimate है। सही जगह मौसम, fish species और समुद्र की स्थिति के अनुसार बदलती है; map marker को demo reference समझें, official PFZ point नहीं। जाने से पहले स्थानीय अनुमति और समुद्र की स्थिति जाँचें।`;
   }
-  const place = location && !isMumbai ? `For ${location}, ` : '';
-  return `${mumbaiContext}${place}fishing grounds vary with season, species, and changing sea conditions. NEER has no live INCOIS Potential Fishing Zone (PFZ) feed, so I can’t label a specific spot or coordinate as today’s verified fishing zone. ${location ? 'The map marks the general place reference, not a fishing point. ' : ''}For current PFZ coordinates, check the latest INCOIS advisory.`;
+  if (isMumbai) {
+    return 'Mumbai is on Maharashtra’s Arabian Sea coast. As a rough demo estimate, the offshore Arabian Sea west of the Mumbai coast is a broad area to explore for fishing. The map shows an approximate reference point, not an official/live PFZ coordinate or guaranteed fishing spot. Check local access and sea conditions before heading out.';
+  }
+  const place = location ? `Around ${location}, ` : 'Around this place, ';
+  return `${place}nearby coastal/offshore waters are a broad fishing-area estimate. Exact grounds change with season, species, and sea conditions; treat the map marker as a demo reference, not an official PFZ point. Check local access and sea conditions before heading out.`;
 }
 
 function createFishingLocationAnswer(question: string, location: string, mapCenter: { latitude: number; longitude: number }) {
   if (isRomanHindi(question)) {
-    return `Pichhle fishing-zone sawaal ke liye map yahan ${location} ko dikhata hai (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). Yeh city/place reference hai, samundar mein verified fishing/PFZ coordinate nahi. Mere paas live PFZ feed nahi hai; aaj ke exact fishing coordinates ke liye INCOIS ki latest advisory dekhein.`;
+    return `Pichhle fishing-zone sawaal ke liye yeh approximate offshore map point hai: ${location} (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). Isse demo estimate samjhein, official/live PFZ coordinate ya guaranteed fishing spot nahi. Nikalne se pehle local access aur sea conditions check kar lena.`;
   }
-  return `For your previous fishing-zone question, the map is centered on ${location} (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). This is a general place reference, not a verified offshore fishing/PFZ coordinate. I don’t have a live PFZ feed; check the latest INCOIS advisory for current fishing-zone coordinates.`;
+  return `For your previous fishing-zone question, here is an approximate offshore map point: ${location} (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). Treat it as a demo estimate, not an official/live PFZ coordinate or guaranteed fishing spot. Check local access and sea conditions before heading out.`;
 }
 
 function getNoKeyAnswer(question: string) {
@@ -399,7 +402,9 @@ export async function POST(request: Request) {
         reverseGeocode(mapCenter),
         findNearbyPlaces(mapCenter),
       ]);
-      locationLabel = resolvedLocationLabel || locationLabel;
+      locationLabel = previousMapMessage?.locationLabel?.startsWith('Approximate')
+        ? previousMapMessage.locationLabel
+        : resolvedLocationLabel || locationLabel;
       nearbyPlaces = resolvedNearbyPlaces;
     } else if (mapRequest && mapQuery) {
       const result = await geocodePlace(mapQuery);
@@ -410,6 +415,21 @@ export async function POST(request: Request) {
       }
     }
 
+    const mumbaiFishingContext =
+      (isFishingZoneQuestion(lastUserMessage) || fishingLocationFollowUp) &&
+      /\bmumbai\b/i.test(`${lastUserMessage} ${previousUserMessage} ${mapQuery || ''}`);
+    if (
+      mumbaiFishingContext &&
+      mapCenter &&
+      !/approximate.*offshore/i.test(locationLabel || '') &&
+      !validLocation &&
+      !textCoordinates
+    ) {
+      mapCenter = { latitude: mapCenter.latitude, longitude: mapCenter.longitude - 0.09 };
+      locationLabel = 'Approximate offshore Arabian Sea reference west of Mumbai';
+      nearbyPlaces = await findNearbyPlaces(mapCenter);
+    }
+
     const mapFields = {
       showMap: mapRequest && Boolean(mapCenter),
       mapLocation: mapCenter,
@@ -418,6 +438,11 @@ export async function POST(request: Request) {
         ? `https://www.openstreetmap.org/?mlat=${mapCenter.latitude}&mlon=${mapCenter.longitude}#map=12/${mapCenter.latitude}/${mapCenter.longitude}`
         : mapQuery
           ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(mapQuery)}`
+          : null,
+      googleMapsUrl: mapCenter
+        ? `https://www.google.com/maps/search/?api=1&query=${mapCenter.latitude},${mapCenter.longitude}`
+        : mapQuery
+          ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`
           : null,
       marinePoints: [] as MarinePoint[],
       nearbyPlaces,

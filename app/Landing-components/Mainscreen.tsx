@@ -11,6 +11,7 @@ type Message = {
   mapLocation?: { latitude: number; longitude: number } | null;
   locationLabel?: string | null;
   mapUrl?: string | null;
+  googleMapsUrl?: string | null;
   marinePoints?: Array<{ label: string; value: string }>;
   nearbyPlaces?: Array<{ name: string; type: string; distanceKm: number }>;
 };
@@ -335,6 +336,7 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
         mapLocation?: { latitude: number; longitude: number } | null;
         locationLabel?: string | null;
         mapUrl?: string | null;
+        googleMapsUrl?: string | null;
         marinePoints?: Array<{ label: string; value: string }>;
         nearbyPlaces?: Array<{ name: string; type: string; distanceKm: number }>;
         error?: string;
@@ -352,6 +354,7 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
           mapLocation: data.mapLocation,
           locationLabel: data.locationLabel,
           mapUrl: data.mapUrl,
+          googleMapsUrl: data.googleMapsUrl,
           marinePoints: data.marinePoints,
           nearbyPlaces: data.nearbyPlaces,
         },
@@ -576,7 +579,9 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
                         <div className="space-y-2 font-light">{renderAssistantText(msg.text)}</div>
                         {((msg.showMap && msg.mapLocation) || msg.mapUrl) && (
                           <div className="space-y-3 rounded-3xl border border-blue-400/20 bg-[#0b1b2a]/70 p-3">
-                            <p className="text-sm font-medium text-white">Location map</p>
+                            <p className="text-sm font-medium text-white">
+                              {msg.locationLabel?.startsWith('Approximate') ? 'Approximate fishing-area map' : 'Location map'}
+                            </p>
                             {msg.showMap && msg.mapLocation && (
                               <iframe
                                 title="OpenStreetMap location map"
@@ -626,6 +631,16 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
                                   className="text-blue-300 underline"
                                 >
                                   Open in OpenStreetMap
+                                </a>
+                              )}
+                              {msg.googleMapsUrl && (
+                                <a
+                                  href={msg.googleMapsUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-blue-300 underline"
+                                >
+                                  Open in Google Maps
                                 </a>
                               )}
                               {msg.mapLocation && (
