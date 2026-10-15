@@ -34,6 +34,12 @@ For every in-scope question, give the most useful answer you can. If exact, loca
 is unavailable, explain that briefly and provide relevant established background, typical regional
 patterns, or a cautious estimate only when you have a defensible basis. Clearly label estimates and
 historical/general information; never present them as a verified current measurement.
+For requests asking for fishing zones near a named place, always give a useful best-effort answer for
+that specific place. Identify the relevant ocean/sea/coast and broad nearby fishing region when the
+place is coastal. If the place is inland, identify the nearest relevant sea/coast at a broad regional
+level and explain that it may be far away; do not stop at saying there is no nearby marine zone. If
+you cannot establish the nearest coast, say that the regional estimate is uncertain and give a Google
+Maps fishing-area search link from the map metadata. Do not fabricate an exact spot or coordinates.
 Never fabricate exact coordinates, nearby places, distances, fishing advisories, measured depths,
 weather, boat counts, or safety conditions. If an exact number is unknown, give qualitative context
 and say what source or additional detail would establish it instead of making up a number.
@@ -66,6 +72,7 @@ const isDepthQuestion = (text: string) =>
 
 const isFishingZoneQuestion = (text: string) =>
   /\b(?:pfz|potential fishing zone|fishing\s+(?:zone|spot|area)|fishing\s+near|nearby\s+fishing)\b/i.test(text) ||
+  /\b(?:machhli|machli)\b.{0,40}\b(?:pakad|catch).{0,30}\b(?:jagah|zone|area|spot)\b|\bfishing\s+zone\b/i.test(text) ||
   /मछली पकड़ने का क्षेत्र|मछली पकड़ने की जगह|पीएफजेड/.test(text);
 
 const asksForCurrentLocation = (text: string) =>
@@ -156,50 +163,35 @@ function createDepthAnswer(question: string, location: string | null) {
   return `${englishPlace}depth varies across a waterbody; maintained navigation channels, shorelines, and tidal areas can differ substantially. I don’t have a verified hydrographic survey for this point, so a meter value would be a guess. For a precise current depth, use an official nautical chart or port survey. The map marker identifies a place, not its depth.`;
 }
 
-function createFishingZoneAnswer(question: string, location: string | null) {
-  const placeText = `${question} ${location || ''}`;
-  const isMumbai = /\bmumbai\b/i.test(placeText);
-  if (/\blacknow\b/i.test(placeText)) {
-    return 'Lucknow is inland, so there is no nearby marine fishing zone or sea-based INCOIS PFZ. If you mean freshwater fishing, name a lake or reservoir; local access and fishing rules need to be checked separately.';
-  }
-  if (isRomanHindi(question)) {
-    if (isMumbai) {
-      return 'Mumbai Maharashtra ke Arabian Sea coast par hai. Ek rough demo fishing-area reference Mumbai coast se west ki taraf Arabian Sea ka offshore hissa hai. Map par approximate point dikhaya hai—ye official/live PFZ coordinate ya guaranteed fishing spot nahi hai. Nikalne se pehle local access aur sea conditions check kar lena.';
+function createFishingLocationAnswer(
+  question: string,
+  location: string,
+  mapCenter: { latitude: number; longitude: number },
+  isOffshoreReference: boolean
+) {
+  if (!isOffshoreReference) {
+    if (isRomanHindi(question)) {
+      return `Yeh ${location} ka map reference hai (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). Google Maps link par is jagah ke aas-paas fishing areas search kar sakte hain; marker khud fishing spot ya live PFZ nahi hai.`;
     }
-    const place = location ? `${location} ke aas-paas ` : 'Is jagah ke aas-paas ';
-    return `${place}coastal/offshore waters ek broad fishing-area estimate hain. Exact area season, fish species aur sea conditions se badalta hai; map marker ko demo reference samjhein, official PFZ point nahi. Nikalne se pehle local access aur sea conditions check kar lena.`;
+    return `This map shows the place reference for ${location} (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). Use the Google Maps link to search fishing areas around it; this marker itself is not a fishing spot or live PFZ.`;
   }
-  if (/[ऀ-ॿ]/.test(question)) {
-    if (isMumbai) {
-      return 'मुंबई महाराष्ट्र के अरब सागर तट पर है। एक सामान्य demo अनुमान के तौर पर, मुंबई तट से पश्चिम की ओर अरब सागर का offshore हिस्सा fishing-area reference हो सकता है। मैप पर दिखाया बिंदु approximate है—यह आधिकारिक/live PFZ coordinate या पक्का fishing spot नहीं है। जाने से पहले स्थानीय अनुमति और समुद्र की स्थिति जाँचें।';
-    }
-    const place = location ? `${location} के आसपास ` : 'इस जगह के आसपास ';
-    return `${place}तटीय/offshore पानी एक broad fishing-area estimate है। सही जगह मौसम, fish species और समुद्र की स्थिति के अनुसार बदलती है; map marker को demo reference समझें, official PFZ point नहीं। जाने से पहले स्थानीय अनुमति और समुद्र की स्थिति जाँचें।`;
-  }
-  if (isMumbai) {
-    return 'Mumbai is on Maharashtra’s Arabian Sea coast. As a rough demo estimate, the offshore Arabian Sea west of the Mumbai coast is a broad area to explore for fishing. The map shows an approximate reference point, not an official/live PFZ coordinate or guaranteed fishing spot. Check local access and sea conditions before heading out.';
-  }
-  const place = location ? `Around ${location}, ` : 'Around this place, ';
-  return `${place}nearby coastal/offshore waters are a broad fishing-area estimate. Exact grounds change with season, species, and sea conditions; treat the map marker as a demo reference, not an official PFZ point. Check local access and sea conditions before heading out.`;
-}
-
-function createFishingLocationAnswer(question: string, location: string, mapCenter: { latitude: number; longitude: number }) {
   if (isRomanHindi(question)) {
     return `Pichhle fishing-zone sawaal ke liye yeh approximate offshore map point hai: ${location} (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). Isse demo estimate samjhein, official/live PFZ coordinate ya guaranteed fishing spot nahi. Nikalne se pehle local access aur sea conditions check kar lena.`;
   }
   return `For your previous fishing-zone question, here is an approximate offshore map point: ${location} (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). Treat it as a demo estimate, not an official/live PFZ coordinate or guaranteed fishing spot. Check local access and sea conditions before heading out.`;
 }
 
-function getNoKeyAnswer(question: string) {
-  const asksForFishingZone = /\b(fishing\s*(zone|spot|area)|fish(ing)?\s*near|nearby\s*fishing|pfz|potential\s*fishing)\b/i.test(question);
-  const asksAboutLucknow = /\blacknow\b/i.test(question);
-  if (!asksForFishingZone || !asksAboutLucknow) return null;
-
-  if (/[\u0900-\u097F]/.test(question)) {
-    return 'लखनऊ समुद्र तट से दूर एक अंदरूनी शहर है, इसलिए वहाँ पास में marine fishing zone या INCOIS Potential Fishing Zone (PFZ) नहीं है। PFZ समुद्र में मछली पकड़ने के लिए तटीय इलाकों में जारी होते हैं। अगर आप freshwater fishing spot पूछ रहे हैं, तो झील/जलाशय का नाम बताइए—मैं अभी किसी जगह की अनुमति या मौजूदा fishing स्थिति verify नहीं कर सकता।';
+function getNoKeyAnswer(question: string, location: string | null) {
+  const asksForFishingZone = isFishingZoneQuestion(question);
+  if (!asksForFishingZone) return null;
+  const place = location || 'the requested place';
+  if (isRomanHindi(question)) {
+    return `${place} ke liye rough fishing-area guidance: samudri fishing aam taur par is region ke nearest coast/offshore waters mein hoti hai; exact coast aur distance ko live marine data se verify nahi kar paya. Google Maps fishing-area search aur map reference neeche diya hai. Map marker fishing spot ya live PFZ nahi hai; coastal city bataoge to region ko aur narrow kiya ja sakta hai.`;
   }
-
-  return 'Lucknow is an inland city, so there is no nearby marine fishing zone or INCOIS Potential Fishing Zone (PFZ). PFZ advisories are for fishing along the coast. If you mean freshwater fishing, tell me the lake or reservoir you have in mind; I can’t verify current access or fishing permission here.';
+  if (/[\u0900-\u097F]/.test(question)) {
+    return `${place} के लिए मोटा fishing-area मार्गदर्शन: समुद्री fishing आम तौर पर क्षेत्र के निकटतम तट और offshore पानी में होती है; मैं अभी तट और दूरी को live marine data से verify नहीं कर पाया। नीचे Google Maps fishing-area search और map reference दिया है। Marker fishing spot या live PFZ नहीं है; coastal city बताएँ तो क्षेत्र को और सीमित किया जा सकता है।`;
+  }
+  return `For ${place}, a broad starting point is the nearest regional coast and its offshore waters, where marine fishing activity is generally found. I could not verify the nearest coast or current conditions right now. Use the Google Maps fishing-area search and map reference below; the marker is not a fishing spot or live PFZ. A coastal city would let me narrow the region.`;
 }
 
 async function reverseGeocode(location: { latitude: number; longitude: number }) {
@@ -439,10 +431,12 @@ export async function POST(request: Request) {
         : mapQuery
           ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(mapQuery)}`
           : null,
-      googleMapsUrl: mapCenter
-        ? `https://www.google.com/maps/search/?api=1&query=${mapCenter.latitude},${mapCenter.longitude}`
-        : mapQuery
-          ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`
+      googleMapsUrl: (isFishingZoneQuestion(lastUserMessage) || fishingLocationFollowUp) && (mapQuery || locationLabel)
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`fishing areas near ${mapQuery || locationLabel}`)}`
+        : mapCenter
+          ? `https://www.google.com/maps/search/?api=1&query=${mapCenter.latitude},${mapCenter.longitude}`
+          : mapQuery
+            ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`
           : null,
       marinePoints: [] as MarinePoint[],
       nearbyPlaces,
@@ -461,7 +455,12 @@ export async function POST(request: Request) {
 
     if (fishingLocationFollowUp && mapCenter) {
       return NextResponse.json({
-        answer: `NEER AI: ${createFishingLocationAnswer(lastUserMessage, locationLabel || mapQuery || 'the requested place', mapCenter)}`,
+        answer: `NEER AI: ${createFishingLocationAnswer(
+          lastUserMessage,
+          locationLabel || mapQuery || 'the requested place',
+          mapCenter,
+          Boolean(locationLabel?.startsWith('Approximate'))
+        )}`,
         ...mapFields,
       });
     }
@@ -474,14 +473,17 @@ export async function POST(request: Request) {
     }
 
     if (isFishingZoneQuestion(lastUserMessage)) {
-      return NextResponse.json({
-        answer: `NEER AI: ${createFishingZoneAnswer(lastUserMessage, mapQuery || locationLabel)}`,
-        ...mapFields,
-      });
+      const isMumbaiExample = /\bmumbai\b/i.test(`${lastUserMessage} ${previousUserMessage} ${mapQuery || ''}`);
+      if (isMumbaiExample && mapCenter && locationLabel?.startsWith('Approximate')) {
+        return NextResponse.json({
+          answer: `NEER AI: Mumbai Maharashtra ke Arabian Sea coast par hai. Ek rough demo fishing-area reference Mumbai coast se west ki taraf Arabian Sea ka offshore hissa hai. Map par approximate point dikhaya hai—ye official/live PFZ coordinate ya guaranteed fishing spot nahi hai. Nikalne se pehle local access aur sea conditions check kar lena.`,
+          ...mapFields,
+        });
+      }
     }
 
     if (keys.length === 0) {
-      const fallbackAnswer = getNoKeyAnswer(lastUserMessage);
+      const fallbackAnswer = getNoKeyAnswer(lastUserMessage, mapQuery || locationLabel);
       if (fallbackAnswer) {
         return NextResponse.json({ answer: `NEER AI: ${fallbackAnswer}`, ...mapFields });
       }
@@ -492,10 +494,11 @@ export async function POST(request: Request) {
       }, { status: 503 });
     }
 
+    const isFishingRequest = isFishingZoneQuestion(lastUserMessage);
     const mapContext = mapCenter
-      ? `\nVerified map lookup: OpenStreetMap resolved the requested map center to ${locationLabel || mapQuery || 'the supplied browser location'} (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). This is only a map reference. It does not verify depth, a fishing zone, weather, or live marine conditions.${nearbyPlaces.length ? ` Nearby mapped water/marine features: ${nearbyPlaces.map((place) => `${place.name} (${place.distanceKm.toFixed(2)} km)`).join(', ')}.` : ''}`
+      ? `\nVerified map lookup: OpenStreetMap resolved the requested map center to ${locationLabel || mapQuery || 'the supplied browser location'} (${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)}). This is only a place/map reference. It does not verify depth, a fishing zone, weather, or live marine conditions.${nearbyPlaces.length ? ` Nearby mapped water/marine features: ${nearbyPlaces.map((place) => `${place.name} (${place.distanceKm.toFixed(2)} km)`).join(', ')}.` : ''}${isFishingRequest ? ` The user wants a fishing-area answer for ${mapQuery || locationLabel || 'the named place'}. Answer directly with the most plausible broad regional sea/coast and fishing area you know. If the place is inland, name the nearest relevant sea/coast at a broad level and say it may be far; do not stop with a refusal or ask the user to repeat the place. Clearly mark geographic fishing-area guidance as approximate, and never invent exact coordinates, a live PFZ, or current conditions. The Google Maps link is a search for fishing areas around the requested place.` : ''}`
       : mapRequest
-        ? '\nMap lookup note: No place could be verified from the query. Do not invent a map center or coordinates. Still answer with useful general marine information, and ask for a city, coast, or water body if a location-specific answer is needed.'
+        ? `\nMap lookup note: No place could be verified from the query. Do not invent a map center or coordinates. ${isFishingRequest ? 'Still give best-effort broad fishing-area guidance for the place named in the conversation, clearly label uncertainty, and do not refuse or ask the user to repeat the same location.' : 'Still answer with useful general marine information, and ask for a city, coast, or water body if a location-specific answer is needed.'}`
         : '';
     const contents = messages
       .filter((message) => message.text)
@@ -524,6 +527,10 @@ export async function POST(request: Request) {
     }
     if (!answer) {
       console.error('Gemini providers failed', lastError);
+      const fallbackAnswer = getNoKeyAnswer(lastUserMessage, mapQuery || locationLabel);
+      if (fallbackAnswer) {
+        return NextResponse.json({ answer: `NEER AI: ${fallbackAnswer}`, ...mapFields });
+      }
       return NextResponse.json({ error: 'NEER AI could not get a reply from its AI provider. Check the Vercel environment variable values and try again.' }, { status: 502 });
     }
     const brandedAnswer = `NEER AI: ${answer.replace(/^NEER AI:\s*/i, '')}`;
