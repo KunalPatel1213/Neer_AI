@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import ServiceWorkerRegistration from "./ServiceWorkerRegistration";
 import "./globals.css";
@@ -17,12 +17,15 @@ export const metadata: Metadata = {
   title: "NEER AI",
   description: "Your intelligent companion for the sea",
   manifest: "/manifest.webmanifest",
-  themeColor: "#070e1b",
   icons: {
     icon: "/log.png",
     shortcut: "/log.png",
     apple: "/log.png",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#070e1b",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
