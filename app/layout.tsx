@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import ServiceWorkerRegistration from "./ServiceWorkerRegistration";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,6 +16,8 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "NEER AI",
   description: "Your intelligent companion for the sea",
+  manifest: "/manifest.webmanifest",
+  themeColor: "#070e1b",
   icons: {
     icon: "/log.png",
     shortcut: "/log.png",
@@ -28,7 +31,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ServiceWorkerRegistration />
+        {children}
+      </body>
     </html>
   );
 }

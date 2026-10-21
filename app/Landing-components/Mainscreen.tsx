@@ -163,6 +163,14 @@ const THINKING_STEPS = [
   { agent: "NEER AI", text: "Preparing a clear, helpful answer..." }
 ];
 
+const QUICK_QUESTIONS = [
+  "Ocean aur river mein kya farq hai?",
+  "Samundar ki gehraai kaise measure hoti hai?",
+  "Lucknow mein fishing ke liye kaunsi nadi paas hai?",
+  "Gomti nadi ki depth kitni hai?",
+  "Mumbai ke paas fishing zones kahan hain?",
+];
+
 const Mainscreen = ({ onLogout }: MainscreenProps) => {
   const [inputValue, setInputValue] = useState('');
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -312,15 +320,16 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
     setIsSidebarOpen(false);
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = (suggestedMessage?: string) => {
     if (isRecording && recognitionRef.current) {
       recognitionRef.current.stop();
       setIsRecording(false);
     }
 
-    if (!inputValue.trim()) return;
+    const messageToSend = suggestedMessage ?? inputValue;
+    if (!messageToSend.trim()) return;
 
-    const userText = inputValue;
+    const userText = messageToSend.trim();
     const newMsgList: Message[] = [...messages, { sender: 'user', text: userText }];
     setMessages(newMsgList);
     setInputValue('');
@@ -595,9 +604,24 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
           className="flex-1 w-full overflow-y-auto my-2 space-y-6 no-scrollbar"
         >
           {messages.length === 0 && !isThinking ? (
-            <div className="h-full flex flex-col items-center justify-center text-center space-y-1">
-              <h2 className="text-2xl font-light text-[#CDCDCD]">Hi,</h2>
-              <h1 className="text-3xl font-medium text-[#CDCDCD]">What’s on your mind?</h1>
+            <div className="min-h-full flex flex-col items-center justify-center text-center space-y-4 py-6">
+              <div className="space-y-1">
+                <h2 className="text-2xl font-light text-[#CDCDCD]">Hi,</h2>
+                <h1 className="text-3xl font-medium text-[#CDCDCD]">What’s on your mind?</h1>
+              </div>
+              <div className="flex max-w-2xl flex-wrap justify-center gap-2 px-2">
+                {QUICK_QUESTIONS.map((question) => (
+                  <button
+                    key={question}
+                    type="button"
+                    onClick={() => handleSendMessage(question)}
+                    className="rounded-full border border-gray-700/60 px-3 py-2 text-left text-xs text-[#CDCDCD] transition hover:border-cyan-400/60 hover:bg-[#39565D]/40"
+                    style={{ backgroundColor: '#39565D26' }}
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="flex flex-col space-y-6 w-full">
