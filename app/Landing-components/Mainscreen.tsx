@@ -808,7 +808,7 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
               </div>
 
               <button 
-                onClick={handleSendMessage}
+                onClick={() => handleSendMessage()}
                 className="w-12 h-12 rounded-full border border-gray-700/60 flex items-center justify-center text-white bg-[#39565D]/60 hover:bg-[#39565D] transition flex-shrink-0 cursor-pointer shadow-xl backdrop-blur-md active:scale-95"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -841,7 +841,7 @@ const Mainscreen = ({ onLogout }: MainscreenProps) => {
               </div>
 
               <button 
-                onClick={inputValue.trim() !== '' ? handleSendMessage : startVoiceRecording}
+                onClick={inputValue.trim() !== '' ? () => handleSendMessage() : startVoiceRecording}
                 className="w-12 h-12 rounded-full border border-gray-700/60 flex items-center justify-center text-[#CDCDCD] hover:bg-[#39565D]/40 transition flex-shrink-0 cursor-pointer shadow-xl backdrop-blur-md active:scale-95"
                 style={{ backgroundColor: '#39565D26' }}
               >
